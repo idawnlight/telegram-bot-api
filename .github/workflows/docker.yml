@@ -1,6 +1,12 @@
 name: Docker Build
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
+      - docker
+  schedule:
+    - cron: '0 0 1 * *'
 
 permissions:
   contents: read
@@ -57,7 +63,7 @@ jobs:
           type=raw,value=${{ steps.version.outputs.commit_sha }}
 
     - name: Build and push
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         platforms: linux/amd64,linux/arm64
