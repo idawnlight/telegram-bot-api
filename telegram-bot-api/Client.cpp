@@ -12207,6 +12207,22 @@ td::Result<td_api::object_ptr<td_api::inputAudio>> Client::get_input_audio(
   return make_object<td_api::inputAudio>(std::move(input_file), std::move(input_thumbnail), duration, title, performer);
 }
 
+td::Result<td_api::object_ptr<td_api::inputPhoto>> Client::get_input_photo(const Query *query,
+                                                                           const td::JsonObject &object,
+                                                                           object_ptr<td_api::InputFile> &&input_file,
+                                                                           bool is_live) const {
+  if (is_live) {
+    TRY_RESULT(photo, object.get_optional_string_field("photo"));
+    auto input_photo = get_input_file(query, td::Slice(), photo, false);
+    if (input_photo == nullptr) {
+      return td::Status::Error("photo not found");
+    }
+    return make_object<td_api::inputPhoto>(std::move(input_photo), nullptr, std::move(input_file), td::vector<int32>(),
+                                           0, 0);
+  }
+  return make_object<td_api::inputPhoto>(std::move(input_file), nullptr, nullptr, td::vector<int32>(), 0, 0);
+}
+
 td::Result<td_api::object_ptr<td_api::inputVideo>> Client::get_input_video(
     const Query *query, const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
     object_ptr<td_api::inputThumbnail> &&input_thumbnail) const {
@@ -12329,21 +12345,10 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
   }
   TRY_RESULT(input_thumbnail, get_input_thumbnail(query, object, true));
 
-  if (type == "photo") {
-    return make_object<td_api::inputMessagePhoto>(
-        make_object<td_api::inputPhoto>(std::move(input_file), nullptr, nullptr, td::vector<int32>(), 0, 0),
-        std::move(caption), show_caption_above_media, nullptr, has_spoiler);
-  }
-  if (type == "live_photo") {
-    TRY_RESULT(photo, object.get_optional_string_field("photo"));
-    auto input_photo = get_input_file(query, td::Slice(), photo, false);
-    if (input_photo == nullptr) {
-      return td::Status::Error("photo not found");
-    }
-    return make_object<td_api::inputMessagePhoto>(
-        make_object<td_api::inputPhoto>(std::move(input_photo), nullptr, std::move(input_file), td::vector<int32>(), 0,
-                                        0),
-        std::move(caption), show_caption_above_media, nullptr, has_spoiler);
+  if (type == "photo" || type == "live_photo") {
+    TRY_RESULT(input_photo, get_input_photo(query, object, std::move(input_file), type == "live_photo"));
+    return make_object<td_api::inputMessagePhoto>(std::move(input_photo), std::move(caption), show_caption_above_media,
+                                                  nullptr, has_spoiler);
   }
   if (type == "video") {
     TRY_RESULT(input_video, get_input_video(query, object, std::move(input_file), std::move(input_thumbnail)));
@@ -12427,18 +12432,9 @@ td::Result<td_api::object_ptr<td_api::InputPollMedia>> Client::get_input_poll_me
   }
   TRY_RESULT(input_thumbnail, get_input_thumbnail(query, object, true));
 
-  if (type == "photo") {
-    return make_object<td_api::inputPollMediaPhoto>(
-        make_object<td_api::inputPhoto>(std::move(input_file), nullptr, nullptr, td::vector<int32>(), 0, 0));
-  }
-  if (type == "live_photo") {
-    TRY_RESULT(photo, object.get_optional_string_field("photo"));
-    auto input_photo = get_input_file(query, td::Slice(), photo, false);
-    if (input_photo == nullptr) {
-      return td::Status::Error("photo not found");
-    }
-    return make_object<td_api::inputPollMediaPhoto>(make_object<td_api::inputPhoto>(
-        std::move(input_photo), nullptr, std::move(input_file), td::vector<int32>(), 0, 0));
+  if (type == "photo" || type == "live_photo") {
+    TRY_RESULT(input_photo, get_input_photo(query, object, std::move(input_file), type == "live_photo"));
+    return make_object<td_api::inputPollMediaPhoto>(std::move(input_photo));
   }
   if (type == "video") {
     TRY_RESULT(input_video, get_input_video(query, object, std::move(input_file), std::move(input_thumbnail)));

@@ -681,6 +681,10 @@ class Client final : public WebhookActor::Callback {
       const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
       object_ptr<td_api::inputThumbnail> &&input_thumbnail);
 
+  td::Result<object_ptr<td_api::inputPhoto>> get_input_photo(const Query *query, const td::JsonObject &object,
+                                                             object_ptr<td_api::InputFile> &&input_file,
+                                                             bool is_live) const;
+
   td::Result<object_ptr<td_api::inputVideo>> get_input_video(
       const Query *query, const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
       object_ptr<td_api::inputThumbnail> &&input_thumbnail) const;
