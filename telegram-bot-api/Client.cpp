@@ -12184,6 +12184,19 @@ td::Result<td_api::object_ptr<td_api::chatPermissions>> Client::get_chat_permiss
       can_edit_tag, can_change_info, can_invite_users, can_pin_messages, can_manage_topics);
 }
 
+td::Result<td_api::object_ptr<td_api::inputAnimation>> Client::get_input_animation(
+    const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
+    object_ptr<td_api::inputThumbnail> &&input_thumbnail) {
+  TRY_RESULT(width, object.get_optional_int_field("width"));
+  TRY_RESULT(height, object.get_optional_int_field("height"));
+  TRY_RESULT(duration, object.get_optional_int_field("duration"));
+  width = td::clamp(width, 0, MAX_LENGTH);
+  height = td::clamp(height, 0, MAX_LENGTH);
+  duration = td::clamp(duration, 0, MAX_DURATION);
+  return make_object<td_api::inputAnimation>(std::move(input_file), std::move(input_thumbnail), td::vector<int32>(),
+                                             duration, width, height);
+}
+
 td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_checklist_task(
     td::JsonValue &&input_task) const {
   if (input_task.type() != td::JsonValue::Type::Object) {
@@ -12326,16 +12339,9 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
     if (for_album) {
       return td::Status::Error(PSLICE() << "type \"" << type << "\" can't be used in sendMediaGroup");
     }
-    TRY_RESULT(width, object.get_optional_int_field("width"));
-    TRY_RESULT(height, object.get_optional_int_field("height"));
-    TRY_RESULT(duration, object.get_optional_int_field("duration"));
-    width = td::clamp(width, 0, MAX_LENGTH);
-    height = td::clamp(height, 0, MAX_LENGTH);
-    duration = td::clamp(duration, 0, MAX_DURATION);
-    return make_object<td_api::inputMessageAnimation>(
-        make_object<td_api::inputAnimation>(std::move(input_file), std::move(input_thumbnail), td::vector<int32>(),
-                                            duration, width, height),
-        std::move(caption), show_caption_above_media, has_spoiler);
+    TRY_RESULT(input_animation, get_input_animation(object, std::move(input_file), std::move(input_thumbnail)));
+    return make_object<td_api::inputMessageAnimation>(std::move(input_animation), std::move(caption),
+                                                      show_caption_above_media, has_spoiler);
   }
   if (type == "audio") {
     TRY_RESULT(duration, object.get_optional_int_field("duration"));
@@ -12442,14 +12448,8 @@ td::Result<td_api::object_ptr<td_api::InputPollMedia>> Client::get_input_poll_me
         duration, width, height, supports_streaming));
   }
   if (type == "animation") {
-    TRY_RESULT(width, object.get_optional_int_field("width"));
-    TRY_RESULT(height, object.get_optional_int_field("height"));
-    TRY_RESULT(duration, object.get_optional_int_field("duration"));
-    width = td::clamp(width, 0, MAX_LENGTH);
-    height = td::clamp(height, 0, MAX_LENGTH);
-    duration = td::clamp(duration, 0, MAX_DURATION);
-    return make_object<td_api::inputPollMediaAnimation>(make_object<td_api::inputAnimation>(
-        std::move(input_file), std::move(input_thumbnail), td::vector<int32>(), duration, width, height));
+    TRY_RESULT(input_animation, get_input_animation(object, std::move(input_file), std::move(input_thumbnail)));
+    return make_object<td_api::inputPollMediaAnimation>(std::move(input_animation));
   }
 
   if (for_option ? type != "sticker" : type != "audio" && type != "document") {

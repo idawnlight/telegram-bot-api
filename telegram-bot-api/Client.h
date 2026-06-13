@@ -673,6 +673,10 @@ class Client final : public WebhookActor::Callback {
   static td::Result<object_ptr<td_api::chatPermissions>> get_chat_permissions(const Query *query, bool &allow_legacy,
                                                                               bool use_independent_chat_permissions);
 
+  static td::Result<object_ptr<td_api::inputAnimation>> get_input_animation(
+      const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
+      object_ptr<td_api::inputThumbnail> &&input_thumbnail);
+
   td::Result<object_ptr<td_api::inputChecklistTask>> get_input_checklist_task(td::JsonValue &&input_task) const;
 
   td::Result<td::vector<object_ptr<td_api::inputChecklistTask>>> get_input_checklist_tasks(td::JsonValue &&value) const;
