@@ -12207,6 +12207,25 @@ td::Result<td_api::object_ptr<td_api::inputAudio>> Client::get_input_audio(
   return make_object<td_api::inputAudio>(std::move(input_file), std::move(input_thumbnail), duration, title, performer);
 }
 
+td::Result<td_api::object_ptr<td_api::inputVideo>> Client::get_input_video(
+    const Query *query, const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
+    object_ptr<td_api::inputThumbnail> &&input_thumbnail) const {
+  TRY_RESULT(width, object.get_optional_int_field("width"));
+  TRY_RESULT(height, object.get_optional_int_field("height"));
+  TRY_RESULT(duration, object.get_optional_int_field("duration"));
+  TRY_RESULT(cover, object.get_optional_string_field("cover"));
+  TRY_RESULT(start_timestamp, object.get_optional_int_field("start_timestamp"));
+  TRY_RESULT(supports_streaming, object.get_optional_bool_field("supports_streaming"));
+  auto input_cover = get_input_file(query, td::Slice(), cover, false);
+  width = td::clamp(width, 0, MAX_LENGTH);
+  height = td::clamp(height, 0, MAX_LENGTH);
+  duration = td::clamp(duration, 0, MAX_DURATION);
+  start_timestamp = td::clamp(start_timestamp, 0, MAX_DURATION);
+  return make_object<td_api::inputVideo>(std::move(input_file), std::move(input_thumbnail), std::move(input_cover),
+                                         start_timestamp, td::vector<int32>(), duration, width, height,
+                                         supports_streaming);
+}
+
 td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_checklist_task(
     td::JsonValue &&input_task) const {
   if (input_task.type() != td::JsonValue::Type::Object) {
@@ -12327,23 +12346,9 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
         std::move(caption), show_caption_above_media, nullptr, has_spoiler);
   }
   if (type == "video") {
-    TRY_RESULT(width, object.get_optional_int_field("width"));
-    TRY_RESULT(height, object.get_optional_int_field("height"));
-    TRY_RESULT(duration, object.get_optional_int_field("duration"));
-    TRY_RESULT(cover, object.get_optional_string_field("cover"));
-    TRY_RESULT(start_timestamp, object.get_optional_int_field("start_timestamp"));
-    TRY_RESULT(supports_streaming, object.get_optional_bool_field("supports_streaming"));
-    auto input_cover = get_input_file(query, td::Slice(), cover, false);
-    width = td::clamp(width, 0, MAX_LENGTH);
-    height = td::clamp(height, 0, MAX_LENGTH);
-    duration = td::clamp(duration, 0, MAX_DURATION);
-    start_timestamp = td::clamp(start_timestamp, 0, MAX_DURATION);
-
-    return make_object<td_api::inputMessageVideo>(
-        make_object<td_api::inputVideo>(std::move(input_file), std::move(input_thumbnail), std::move(input_cover),
-                                        start_timestamp, td::vector<int32>(), duration, width, height,
-                                        supports_streaming),
-        std::move(caption), show_caption_above_media, nullptr, has_spoiler);
+    TRY_RESULT(input_video, get_input_video(query, object, std::move(input_file), std::move(input_thumbnail)));
+    return make_object<td_api::inputMessageVideo>(std::move(input_video), std::move(caption), show_caption_above_media,
+                                                  nullptr, has_spoiler);
   }
   if (type == "animation") {
     if (for_album) {
@@ -12436,21 +12441,8 @@ td::Result<td_api::object_ptr<td_api::InputPollMedia>> Client::get_input_poll_me
         std::move(input_photo), nullptr, std::move(input_file), td::vector<int32>(), 0, 0));
   }
   if (type == "video") {
-    TRY_RESULT(width, object.get_optional_int_field("width"));
-    TRY_RESULT(height, object.get_optional_int_field("height"));
-    TRY_RESULT(duration, object.get_optional_int_field("duration"));
-    TRY_RESULT(cover, object.get_optional_string_field("cover"));
-    TRY_RESULT(start_timestamp, object.get_optional_int_field("start_timestamp"));
-    TRY_RESULT(supports_streaming, object.get_optional_bool_field("supports_streaming"));
-    auto input_cover = get_input_file(query, td::Slice(), cover, false);
-    width = td::clamp(width, 0, MAX_LENGTH);
-    height = td::clamp(height, 0, MAX_LENGTH);
-    duration = td::clamp(duration, 0, MAX_DURATION);
-    start_timestamp = td::clamp(start_timestamp, 0, MAX_DURATION);
-
-    return make_object<td_api::inputPollMediaVideo>(make_object<td_api::inputVideo>(
-        std::move(input_file), std::move(input_thumbnail), std::move(input_cover), start_timestamp, td::vector<int32>(),
-        duration, width, height, supports_streaming));
+    TRY_RESULT(input_video, get_input_video(query, object, std::move(input_file), std::move(input_thumbnail)));
+    return make_object<td_api::inputPollMediaVideo>(std::move(input_video));
   }
   if (type == "animation") {
     TRY_RESULT(input_animation, get_input_animation(object, std::move(input_file), std::move(input_thumbnail)));
