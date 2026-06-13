@@ -12197,6 +12197,16 @@ td::Result<td_api::object_ptr<td_api::inputAnimation>> Client::get_input_animati
                                              duration, width, height);
 }
 
+td::Result<td_api::object_ptr<td_api::inputAudio>> Client::get_input_audio(
+    const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
+    object_ptr<td_api::inputThumbnail> &&input_thumbnail) {
+  TRY_RESULT(duration, object.get_optional_int_field("duration"));
+  TRY_RESULT(title, object.get_optional_string_field("title"));
+  TRY_RESULT(performer, object.get_optional_string_field("performer"));
+  duration = td::clamp(duration, 0, MAX_DURATION);
+  return make_object<td_api::inputAudio>(std::move(input_file), std::move(input_thumbnail), duration, title, performer);
+}
+
 td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_checklist_task(
     td::JsonValue &&input_task) const {
   if (input_task.type() != td::JsonValue::Type::Object) {
@@ -12344,13 +12354,8 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
                                                       show_caption_above_media, has_spoiler);
   }
   if (type == "audio") {
-    TRY_RESULT(duration, object.get_optional_int_field("duration"));
-    TRY_RESULT(title, object.get_optional_string_field("title"));
-    TRY_RESULT(performer, object.get_optional_string_field("performer"));
-    duration = td::clamp(duration, 0, MAX_DURATION);
-    return make_object<td_api::inputMessageAudio>(
-        make_object<td_api::inputAudio>(std::move(input_file), std::move(input_thumbnail), duration, title, performer),
-        std::move(caption));
+    TRY_RESULT(input_audio, get_input_audio(object, std::move(input_file), std::move(input_thumbnail)));
+    return make_object<td_api::inputMessageAudio>(std::move(input_audio), std::move(caption));
   }
   if (type == "document") {
     TRY_RESULT(disable_content_type_detection, object.get_optional_bool_field("disable_content_type_detection"));
@@ -12459,12 +12464,8 @@ td::Result<td_api::object_ptr<td_api::InputPollMedia>> Client::get_input_poll_me
     return make_object<td_api::inputPollMediaSticker>(std::move(input_file), std::move(input_thumbnail), 0, 0);
   }
   if (type == "audio") {
-    TRY_RESULT(duration, object.get_optional_int_field("duration"));
-    TRY_RESULT(title, object.get_optional_string_field("title"));
-    TRY_RESULT(performer, object.get_optional_string_field("performer"));
-    duration = td::clamp(duration, 0, MAX_DURATION);
-    return make_object<td_api::inputPollMediaAudio>(
-        make_object<td_api::inputAudio>(std::move(input_file), std::move(input_thumbnail), duration, title, performer));
+    TRY_RESULT(input_audio, get_input_audio(object, std::move(input_file), std::move(input_thumbnail)));
+    return make_object<td_api::inputPollMediaAudio>(std::move(input_audio));
   }
   if (type == "document") {
     TRY_RESULT(disable_content_type_detection, object.get_optional_bool_field("disable_content_type_detection"));

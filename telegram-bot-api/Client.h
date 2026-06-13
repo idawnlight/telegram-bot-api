@@ -677,6 +677,10 @@ class Client final : public WebhookActor::Callback {
       const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
       object_ptr<td_api::inputThumbnail> &&input_thumbnail);
 
+  static td::Result<object_ptr<td_api::inputAudio>> get_input_audio(
+      const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
+      object_ptr<td_api::inputThumbnail> &&input_thumbnail);
+
   td::Result<object_ptr<td_api::inputChecklistTask>> get_input_checklist_task(td::JsonValue &&input_task) const;
 
   td::Result<td::vector<object_ptr<td_api::inputChecklistTask>>> get_input_checklist_tasks(td::JsonValue &&value) const;
