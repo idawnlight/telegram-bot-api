@@ -1588,27 +1588,14 @@ class Client::JsonChat final : public td::Jsonable {
           if (user_info->paid_message_star_count > 0) {
             object("paid_message_star_count", user_info->paid_message_star_count);
           }
+          photo = user_info->photo.get();
         }
-        photo = user_info->photo.get();
         break;
       }
       case ChatInfo::Type::Group: {
         object("title", chat_info->title);
         object("type", "group");
-
         const auto *permissions = chat_info->permissions.get();
-
-        auto group_info = client_->get_group_info(chat_info->group_id);
-        CHECK(group_info != nullptr);
-        if (is_full_) {
-          if (!group_info->description.empty()) {
-            object("description", group_info->description);
-          }
-          if (!group_info->invite_link.empty()) {
-            object("invite_link", group_info->invite_link);
-          }
-          object("permissions", JsonChatPermissions(permissions));
-        }
         auto everyone_is_administrator =
             permissions->can_send_basic_messages_ && permissions->can_send_audios_ &&
             permissions->can_send_documents_ && permissions->can_send_photos_ && permissions->can_send_videos_ &&
@@ -1617,8 +1604,19 @@ class Client::JsonChat final : public td::Jsonable {
             permissions->can_react_to_messages_ && permissions->can_edit_tag_ && permissions->can_change_info_ &&
             permissions->can_invite_users_ && permissions->can_pin_messages_;
         object("all_members_are_administrators", td::JsonBool(everyone_is_administrator));
-        object("accepted_gift_types", JsonAcceptedGiftTypes(false, false, false, false, false));
-        photo = group_info->photo.get();
+        if (is_full_) {
+          auto group_info = client_->get_group_info(chat_info->group_id);
+          CHECK(group_info != nullptr);
+          if (!group_info->description.empty()) {
+            object("description", group_info->description);
+          }
+          if (!group_info->invite_link.empty()) {
+            object("invite_link", group_info->invite_link);
+          }
+          object("permissions", JsonChatPermissions(permissions));
+          object("accepted_gift_types", JsonAcceptedGiftTypes(false, false, false, false, false));
+          photo = group_info->photo.get();
+        }
         break;
       }
       case ChatInfo::Type::Supergroup: {
@@ -1718,8 +1716,8 @@ class Client::JsonChat final : public td::Jsonable {
           if (supergroup_info->paid_message_star_count) {
             object("paid_message_star_count", supergroup_info->paid_message_star_count);
           }
+          photo = supergroup_info->photo.get();
         }
-        photo = supergroup_info->photo.get();
         break;
       }
       case ChatInfo::Type::Unknown:
