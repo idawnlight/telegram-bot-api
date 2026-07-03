@@ -512,12 +512,12 @@ class Client final : public WebhookActor::Callback {
 
   static td::Result<object_ptr<td_api::KeyboardButtonType>> get_keyboard_button_type(td::JsonObject &object);
 
-  static td::Result<object_ptr<td_api::keyboardButton>> get_keyboard_button(td::JsonValue &button);
+  static td::Result<object_ptr<td_api::keyboardButton>> get_keyboard_button(td::JsonValue &&button);
 
   static td::Result<object_ptr<td_api::InlineKeyboardButtonType>> get_inline_keyboard_button_type(
       td::JsonObject &object, BotUserIds &bot_user_ids);
 
-  static td::Result<object_ptr<td_api::inlineKeyboardButton>> get_inline_keyboard_button(td::JsonValue &button,
+  static td::Result<object_ptr<td_api::inlineKeyboardButton>> get_inline_keyboard_button(td::JsonValue &&button,
                                                                                          BotUserIds &bot_user_ids);
 
   static td::Result<object_ptr<td_api::ReplyMarkup>> get_reply_markup(const Query *query, BotUserIds &bot_user_ids);
@@ -530,20 +530,20 @@ class Client final : public WebhookActor::Callback {
 
   static td::Result<object_ptr<td_api::inputSuggestedPostInfo>> get_input_suggested_post_info(td::JsonValue &&value);
 
-  static td::Result<object_ptr<td_api::labeledPricePart>> get_labeled_price_part(td::JsonValue &value);
+  static td::Result<object_ptr<td_api::labeledPricePart>> get_labeled_price_part(td::JsonValue &&value);
 
-  static td::Result<td::vector<object_ptr<td_api::labeledPricePart>>> get_labeled_price_parts(td::JsonValue &value);
+  static td::Result<td::vector<object_ptr<td_api::labeledPricePart>>> get_labeled_price_parts(td::JsonValue &&value);
 
-  static td::Result<td::vector<int64>> get_suggested_tip_amounts(td::JsonValue &value);
+  static td::Result<td::vector<int64>> get_suggested_tip_amounts(td::JsonValue &&value);
 
-  static td::Result<object_ptr<td_api::shippingOption>> get_shipping_option(td::JsonValue &option);
+  static td::Result<object_ptr<td_api::shippingOption>> get_shipping_option(td::JsonValue &&option);
 
   static td::Result<td::vector<object_ptr<td_api::shippingOption>>> get_shipping_options(const Query *query);
 
   static td::Result<td::vector<object_ptr<td_api::shippingOption>>> get_shipping_options(td::JsonValue &&value);
 
   td::Result<object_ptr<td_api::InputMessageContent>> get_input_message_content(
-      const Query *query, td::JsonValue &input_message_content, bool is_input_message_content_required) const;
+      const Query *query, td::JsonObject &object, bool is_input_message_content_required) const;
 
   static object_ptr<td_api::ChatAction> get_chat_action(const Query *query);
 

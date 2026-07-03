@@ -10156,7 +10156,7 @@ td::Result<td_api::object_ptr<td_api::KeyboardButtonType>> Client::get_keyboard_
   return nullptr;
 }
 
-td::Result<td_api::object_ptr<td_api::keyboardButton>> Client::get_keyboard_button(td::JsonValue &button) {
+td::Result<td_api::object_ptr<td_api::keyboardButton>> Client::get_keyboard_button(td::JsonValue &&button) {
   if (button.type() == td::JsonValue::Type::Object) {
     auto &object = button.get_object();
 
@@ -10174,7 +10174,7 @@ td::Result<td_api::object_ptr<td_api::keyboardButton>> Client::get_keyboard_butt
 }
 
 td::Result<td_api::object_ptr<td_api::inlineKeyboardButton>> Client::get_inline_keyboard_button(
-    td::JsonValue &button, BotUserIds &bot_user_ids) {
+    td::JsonValue &&button, BotUserIds &bot_user_ids) {
   if (button.type() != td::JsonValue::Type::Object) {
     return td::Status::Error(400, "InlineKeyboardButton must be an Object");
   }
@@ -10329,7 +10329,7 @@ td::Result<td_api::object_ptr<td_api::ReplyMarkup>> Client::get_reply_markup(td:
         return td::Status::Error(400, "Field \"keyboard\" must be an Array of Arrays");
       }
       for (auto &button : row.get_array()) {
-        auto r_button = get_keyboard_button(button);
+        auto r_button = get_keyboard_button(std::move(button));
         if (r_button.is_error()) {
           return td::Status::Error(400, PSLICE() << "Can't parse keyboard button: " << r_button.error().message());
         }
@@ -10350,7 +10350,7 @@ td::Result<td_api::object_ptr<td_api::ReplyMarkup>> Client::get_reply_markup(td:
                                  "Field \"inline_keyboard\" of the InlineKeyboardMarkup must be an Array of Arrays");
       }
       for (auto &button : inline_row.get_array()) {
-        auto r_button = get_inline_keyboard_button(button, bot_user_ids);
+        auto r_button = get_inline_keyboard_button(std::move(button), bot_user_ids);
         if (r_button.is_error()) {
           return td::Status::Error(400, PSLICE()
                                             << "Can't parse inline keyboard button: " << r_button.error().message());
@@ -10447,7 +10447,7 @@ td::Result<td_api::object_ptr<td_api::inputSuggestedPostInfo>> Client::get_input
   return make_object<td_api::inputSuggestedPostInfo>(std::move(price), send_date);
 }
 
-td::Result<td_api::object_ptr<td_api::labeledPricePart>> Client::get_labeled_price_part(td::JsonValue &value) {
+td::Result<td_api::object_ptr<td_api::labeledPricePart>> Client::get_labeled_price_part(td::JsonValue &&value) {
   if (value.type() != td::JsonValue::Type::Object) {
     return td::Status::Error(400, "LabeledPrice must be an Object");
   }
@@ -10464,14 +10464,14 @@ td::Result<td_api::object_ptr<td_api::labeledPricePart>> Client::get_labeled_pri
 }
 
 td::Result<td::vector<td_api::object_ptr<td_api::labeledPricePart>>> Client::get_labeled_price_parts(
-    td::JsonValue &value) {
+    td::JsonValue &&value) {
   if (value.type() != td::JsonValue::Type::Array) {
     return td::Status::Error(400, "Expected an Array of labeled prices");
   }
 
   td::vector<object_ptr<td_api::labeledPricePart>> prices;
   for (auto &price : value.get_array()) {
-    auto r_labeled_price = get_labeled_price_part(price);
+    auto r_labeled_price = get_labeled_price_part(std::move(price));
     if (r_labeled_price.is_error()) {
       return td::Status::Error(400, PSLICE() << "Can't parse labeled price: " << r_labeled_price.error().message());
     }
@@ -10484,7 +10484,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::labeledPricePart>>> Client::get
   return std::move(prices);
 }
 
-td::Result<td::vector<td::int64>> Client::get_suggested_tip_amounts(td::JsonValue &value) {
+td::Result<td::vector<td::int64>> Client::get_suggested_tip_amounts(td::JsonValue &&value) {
   if (value.type() != td::JsonValue::Type::Array) {
     return td::Status::Error(400, "Expected an Array of suggested tip amounts");
   }
@@ -10508,7 +10508,7 @@ td::Result<td::vector<td::int64>> Client::get_suggested_tip_amounts(td::JsonValu
   return std::move(suggested_tip_amounts);
 }
 
-td::Result<td_api::object_ptr<td_api::shippingOption>> Client::get_shipping_option(td::JsonValue &option) {
+td::Result<td_api::object_ptr<td_api::shippingOption>> Client::get_shipping_option(td::JsonValue &&option) {
   if (option.type() != td::JsonValue::Type::Object) {
     return td::Status::Error(400, "ShippingOption must be an Object");
   }
@@ -10527,7 +10527,7 @@ td::Result<td_api::object_ptr<td_api::shippingOption>> Client::get_shipping_opti
 
   TRY_RESULT(prices_json, object.extract_required_field("prices", td::JsonValue::Type::Array));
 
-  auto r_prices = get_labeled_price_parts(prices_json);
+  auto r_prices = get_labeled_price_parts(std::move(prices_json));
   if (r_prices.is_error()) {
     return td::Status::Error(400, PSLICE() << "Can't parse shipping option prices: " << r_prices.error().message());
   }
@@ -10555,7 +10555,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::shippingOption>>> Client::get_s
 
   td::vector<object_ptr<td_api::shippingOption>> options;
   for (auto &option : value.get_array()) {
-    auto r_shipping_option = get_shipping_option(option);
+    auto r_shipping_option = get_shipping_option(std::move(option));
     if (r_shipping_option.is_error()) {
       return td::Status::Error(400, PSLICE() << "Can't parse shipping option: " << r_shipping_option.error().message());
     }
@@ -10695,10 +10695,7 @@ td::Result<td_api::object_ptr<td_api::inputThumbnail>> Client::get_input_thumbna
 }
 
 td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_message_content(
-    const Query *query, td::JsonValue &input_message_content, bool is_input_message_content_required) const {
-  CHECK(input_message_content.type() == td::JsonValue::Type::Object);
-  auto &object = input_message_content.get_object();
-
+    const Query *query, td::JsonObject &object, bool is_input_message_content_required) const {
   if (object.has_field("rich_message")) {
     TRY_RESULT(rich_message, object.extract_required_field("rich_message", td::JsonValue::Type::Object));
     TRY_RESULT(input_rich_message, get_input_rich_message(query, std::move(rich_message)));
@@ -10762,14 +10759,14 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
     TRY_RESULT(provider_token, object.get_optional_string_field("provider_token"));
     TRY_RESULT(currency, object.get_required_string_field("currency"));
     TRY_RESULT(prices_object, object.extract_required_field("prices", td::JsonValue::Type::Array));
-    TRY_RESULT(prices, get_labeled_price_parts(prices_object));
+    TRY_RESULT(prices, get_labeled_price_parts(std::move(prices_object)));
     TRY_RESULT(provider_data, object.get_optional_string_field("provider_data"));
     TRY_RESULT(max_tip_amount, object.get_optional_long_field("max_tip_amount"));
     td::vector<int64> suggested_tip_amounts;
     TRY_RESULT(suggested_tip_amounts_array,
                object.extract_optional_field("suggested_tip_amounts", td::JsonValue::Type::Array));
     if (suggested_tip_amounts_array.type() == td::JsonValue::Type::Array) {
-      TRY_RESULT_ASSIGN(suggested_tip_amounts, get_suggested_tip_amounts(suggested_tip_amounts_array));
+      TRY_RESULT_ASSIGN(suggested_tip_amounts, get_suggested_tip_amounts(std::move(suggested_tip_amounts_array)));
     }
     TRY_RESULT(photo_url, object.get_optional_string_field("photo_url"));
     TRY_RESULT(photo_size, object.get_optional_int_field("photo_size"));
@@ -10943,8 +10940,9 @@ td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inlin
       input_message_content = std::move(input_message_text);
     }
   } else {
+    auto &input_message_content_object = input_message_content_obj.get_object();
     TRY_RESULT(input_message_content_result,
-               get_input_message_content(query, input_message_content_obj, is_input_message_content_required));
+               get_input_message_content(query, input_message_content_object, is_input_message_content_required));
     input_message_content = std::move(input_message_content_result);
   }
   TRY_RESULT(input_caption, object.get_optional_string_field("caption"));
@@ -12899,7 +12897,7 @@ td::Result<td_api::object_ptr<td_api::inputMessageInvoice>> Client::get_input_me
     return td::Status::Error(400, "Can't parse prices JSON object");
   }
 
-  TRY_RESULT(prices, get_labeled_price_parts(r_labeled_price_parts_value.ok_ref()));
+  TRY_RESULT(prices, get_labeled_price_parts(r_labeled_price_parts_value.move_as_ok()));
 
   int64 max_tip_amount = 0;
   td::vector<int64> suggested_tip_amounts;
@@ -12920,7 +12918,7 @@ td::Result<td_api::object_ptr<td_api::inputMessageInvoice>> Client::get_input_me
         return td::Status::Error(400, "Can't parse suggested_tip_amounts JSON object");
       }
 
-      TRY_RESULT_ASSIGN(suggested_tip_amounts, get_suggested_tip_amounts(r_suggested_tip_amounts_value.ok_ref()));
+      TRY_RESULT_ASSIGN(suggested_tip_amounts, get_suggested_tip_amounts(r_suggested_tip_amounts_value.move_as_ok()));
     }
   }
 
@@ -15299,7 +15297,7 @@ td::Status Client::process_save_prepared_keyboard_button_query(PromisedQueryPtr 
     return td::Status::Error(400, "Can't parse keyboard button JSON object");
   }
   auto value = r_value.move_as_ok();
-  auto r_button = get_keyboard_button(value);
+  auto r_button = get_keyboard_button(std::move(value));
   if (r_button.is_error()) {
     return td::Status::Error(400, PSLICE() << "Can't parse keyboard button: " << r_button.error().message());
   }
