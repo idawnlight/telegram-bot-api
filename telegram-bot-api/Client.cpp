@@ -684,8 +684,8 @@ class Client::JsonRichText final : public td::Jsonable {
       *scope << td::JsonString(text->text_);
       return;
     }
-    if (text_id == td_api::richTextIcon::ID) {
-      LOG(ERROR) << "Receive richTextIcon";
+    if (text_id == td_api::richTextIcon::ID || text_id == td_api::richTextDiff::ID) {
+      LOG(ERROR) << "Receive " << to_string(*text_);
       *scope << td::JsonString(td::Slice());
       return;
     }
@@ -2002,11 +2002,10 @@ class Client::JsonSuggestedPostPrice final : public td::Jsonable {
         object("currency", "XTR");
         object("amount", static_cast<const td_api::suggestedPostPriceStar *>(suggested_post_price_)->star_count_);
         break;
-      case td_api::suggestedPostPriceTon::ID:
+      case td_api::suggestedPostPriceGram::ID:
         object("currency", "TON");
-        object(
-            "amount",
-            static_cast<const td_api::suggestedPostPriceTon *>(suggested_post_price_)->toncoin_cent_count_ * 10000000);
+        object("amount",
+               static_cast<const td_api::suggestedPostPriceGram *>(suggested_post_price_)->gram_cent_count_ * 10000000);
         break;
       default:
         UNREACHABLE();
@@ -3065,7 +3064,7 @@ class Client::JsonSuggestedPostPaid final : public td::Jsonable {
       object("star_amount", JsonStarAmount(suggested_post_paid_->star_amount_.get()));
     } else {
       object("currency", "TON");
-      object("amount", suggested_post_paid_->ton_amount_);
+      object("amount", suggested_post_paid_->gram_amount_);
     }
   }
 
@@ -3532,10 +3531,10 @@ class Client::JsonUniqueGiftMessage final : public td::Jsonable {
             object("last_resale_amount", price->star_count_);
             break;
           }
-          case td_api::giftResalePriceTon::ID: {
-            auto price = static_cast<const td_api::giftResalePriceTon *>(origin->price_.get());
+          case td_api::giftResalePriceGram::ID: {
+            auto price = static_cast<const td_api::giftResalePriceGram *>(origin->price_.get());
             object("last_resale_currency", "TON");
-            object("last_resale_amount", price->toncoin_cent_count_ * 10000000);
+            object("last_resale_amount", price->gram_cent_count_ * 10000000);
             break;
           }
           default:
@@ -4674,7 +4673,7 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
       object("sender_business_bot", JsonUser(message_->sender_business_bot_user_id, client_));
     }
   }
-  object("message_id", message_->is_scheduled ? 0 : as_client_message_id(message_->id));
+  object("message_id", as_client_message_id_unchecked(message_->id));
   if (message_->sender_user_id != 0) {
     object("from", JsonUser(message_->sender_user_id, client_));
   }
@@ -5283,6 +5282,10 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
       object("rich_message", JsonRichMessage(content->message_.get(), client_));
       break;
     }
+    case td_api::messageChatAddedToCommunity::ID:
+      break;
+    case td_api::messageChatRemovedFromCommunity::ID:
+      break;
     default:
       UNREACHABLE();
   }
@@ -10383,9 +10386,9 @@ td::Result<td_api::object_ptr<td_api::SuggestedPostPrice>> Client::get_suggested
   }
   if (currency == "TON") {
     if (amount % 10000000 != 0) {
-      return td::Status::Error(400, "Suggested post price must be divisible by 10000000 nanotoncoins");
+      return td::Status::Error(400, "Suggested post price must be divisible by 10000000 nanograms");
     }
-    return make_object<td_api::suggestedPostPriceTon>(amount / 10000000);
+    return make_object<td_api::suggestedPostPriceGram>(amount / 10000000);
   }
   return td::Status::Error(400, "Invalid suggested post price currency specified");
 }
@@ -11105,7 +11108,7 @@ td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inlin
     TRY_RESULT(sticker_file_id, object.get_required_string_field("sticker_file_id"));
 
     if (input_message_content == nullptr) {
-      input_message_content = make_object<td_api::inputMessageSticker>(nullptr, nullptr, 0, 0, td::string());
+      input_message_content = make_object<td_api::inputMessageSticker>(nullptr, td::string());
     }
     return make_object<td_api::inputInlineQueryResultSticker>(id, "", sticker_file_id, 0, 0, std::move(reply_markup),
                                                               std::move(input_message_content));
@@ -11152,8 +11155,7 @@ td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inlin
     }
 
     if (input_message_content == nullptr) {
-      input_message_content = make_object<td_api::inputMessageVoiceNote>(
-          nullptr, voice_note_duration, "" /* waveform */, std::move(caption), nullptr);
+      input_message_content = make_object<td_api::inputMessageVoiceNote>(nullptr, std::move(caption), nullptr);
     }
     return make_object<td_api::inputInlineQueryResultVoiceNote>(
         id, title, voice_note_url, voice_note_duration, std::move(reply_markup), std::move(input_message_content));
@@ -11235,7 +11237,7 @@ td::Result<td_api::object_ptr<td_api::botCommand>> Client::get_bot_command(td::J
   TRY_RESULT(command, object.get_required_string_field("command"));
   TRY_RESULT(description, object.get_required_string_field("description"));
 
-  return make_object<td_api::botCommand>(command, description);
+  return make_object<td_api::botCommand>(command, description, false);
 }
 
 td::Result<td::vector<td_api::object_ptr<td_api::botCommand>>> Client::get_bot_commands(const Query *query) {
@@ -11502,9 +11504,8 @@ td::Result<td_api::object_ptr<td_api::StickerFormat>> Client::get_sticker_format
   return td::Status::Error(400, "Invalid sticker format specified");
 }
 
-td::Result<td_api::object_ptr<td_api::inputSticker>> Client::get_input_sticker(const Query *query,
-                                                                               td::JsonValue &&value,
-                                                                               td::Slice default_sticker_format) const {
+td::Result<td_api::object_ptr<td_api::newSticker>> Client::get_new_sticker(const Query *query, td::JsonValue &&value,
+                                                                           td::Slice default_sticker_format) const {
   if (value.type() != td::JsonValue::Type::Object) {
     return td::Status::Error(400, "InputSticker must be an Object");
   }
@@ -11539,11 +11540,11 @@ td::Result<td_api::object_ptr<td_api::inputSticker>> Client::get_input_sticker(c
       input_keywords.push_back(keyword.get_string().str());
     }
   }
-  return make_object<td_api::inputSticker>(std::move(input_file), std::move(sticker_format), emojis,
-                                           std::move(mask_position), std::move(input_keywords));
+  return make_object<td_api::newSticker>(std::move(input_file), std::move(sticker_format), emojis,
+                                         std::move(mask_position), std::move(input_keywords));
 }
 
-td::Result<td_api::object_ptr<td_api::inputSticker>> Client::get_input_sticker(const Query *query) const {
+td::Result<td_api::object_ptr<td_api::newSticker>> Client::get_new_sticker(const Query *query) const {
   if (query->has_arg("sticker") || query->file("sticker") != nullptr) {
     auto sticker = query->arg("sticker");
     LOG(INFO) << "Parsing JSON object: " << sticker;
@@ -11553,17 +11554,17 @@ td::Result<td_api::object_ptr<td_api::inputSticker>> Client::get_input_sticker(c
       return td::Status::Error(400, "Can't parse sticker JSON object");
     }
 
-    auto r_sticker = get_input_sticker(query, r_value.move_as_ok(), "auto");
+    auto r_sticker = get_new_sticker(query, r_value.move_as_ok(), "auto");
     if (r_sticker.is_error()) {
       return td::Status::Error(400, PSLICE() << "Can't parse sticker: " << r_sticker.error().message());
     }
     return r_sticker.move_as_ok();
   }
 
-  return get_legacy_input_sticker(query);
+  return get_legacy_new_sticker(query);
 }
 
-td::Result<td_api::object_ptr<td_api::inputSticker>> Client::get_legacy_input_sticker(const Query *query) const {
+td::Result<td_api::object_ptr<td_api::newSticker>> Client::get_legacy_new_sticker(const Query *query) const {
   auto emojis = query->arg("emojis");
   auto sticker = get_input_file(query, "png_sticker");
   object_ptr<td_api::StickerFormat> sticker_format;
@@ -11591,11 +11592,11 @@ td::Result<td_api::object_ptr<td_api::inputSticker>> Client::get_legacy_input_st
     }
   }
 
-  return make_object<td_api::inputSticker>(std::move(sticker), std::move(sticker_format), emojis.str(),
-                                           std::move(mask_position), td::vector<td::string>());
+  return make_object<td_api::newSticker>(std::move(sticker), std::move(sticker_format), emojis.str(),
+                                         std::move(mask_position), td::vector<td::string>());
 }
 
-td::Result<td::vector<td_api::object_ptr<td_api::inputSticker>>> Client::get_input_stickers(const Query *query) const {
+td::Result<td::vector<td_api::object_ptr<td_api::newSticker>>> Client::get_new_stickers(const Query *query) const {
   if (query->has_arg("stickers")) {
     auto sticker_format_str = query->arg("sticker_format");
     auto stickers = query->arg("stickers");
@@ -11616,21 +11617,21 @@ td::Result<td::vector<td_api::object_ptr<td_api::inputSticker>>> Client::get_inp
       return td::Status::Error(400, "Too many stickers specified");
     }
 
-    td::vector<object_ptr<td_api::inputSticker>> input_stickers;
-    for (auto &input_sticker : value.get_array()) {
-      auto r_input_sticker = get_input_sticker(query, std::move(input_sticker), sticker_format_str);
-      if (r_input_sticker.is_error()) {
-        return td::Status::Error(400, PSLICE() << "Can't parse InputSticker: " << r_input_sticker.error().message());
+    td::vector<object_ptr<td_api::newSticker>> new_stickers;
+    for (auto &new_sticker : value.get_array()) {
+      auto r_new_sticker = get_new_sticker(query, std::move(new_sticker), sticker_format_str);
+      if (r_new_sticker.is_error()) {
+        return td::Status::Error(400, PSLICE() << "Can't parse InputSticker: " << r_new_sticker.error().message());
       }
-      input_stickers.push_back(r_input_sticker.move_as_ok());
+      new_stickers.push_back(r_new_sticker.move_as_ok());
     }
-    return std::move(input_stickers);
+    return std::move(new_stickers);
   }
 
-  TRY_RESULT(input_sticker, get_legacy_input_sticker(query));
+  TRY_RESULT(new_sticker, get_legacy_new_sticker(query));
 
-  td::vector<object_ptr<td_api::inputSticker>> stickers;
-  stickers.push_back(std::move(input_sticker));
+  td::vector<object_ptr<td_api::newSticker>> stickers;
+  stickers.push_back(std::move(new_sticker));
   return std::move(stickers);
 }
 
@@ -11985,10 +11986,10 @@ td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_
   auto result = make_object<td_api::inputRichMessage>(nullptr, is_rtl, !skip_entity_detection);
   if (object.has_field("markdown")) {
     TRY_RESULT(text, object.get_required_string_field("markdown"));
-    result->source_ = make_object<td_api::richMessageSourceMarkdown>(text);
+    result->source_ = make_object<td_api::richMessageSourceMarkdown>(text, td::Auto());
   } else if (object.has_field("html")) {
     TRY_RESULT(text, object.get_required_string_field("html"));
-    result->source_ = make_object<td_api::richMessageSourceHtml>(text);
+    result->source_ = make_object<td_api::richMessageSourceHtml>(text, td::Auto());
   } else {
     return td::Status::Error(400, "Rich message must be non-empty");
   }
@@ -12447,7 +12448,8 @@ td::Result<td_api::object_ptr<td_api::InputPollMedia>> Client::get_input_poll_me
     return td::Status::Error(PSLICE() << "type \"" << type << "\" is unsupported");
   }
   if (type == "sticker") {
-    return make_object<td_api::inputPollMediaSticker>(std::move(input_file), std::move(input_thumbnail), 0, 0);
+    return make_object<td_api::inputPollMediaSticker>(
+        make_object<td_api::inputSticker>(std::move(input_file), std::move(input_thumbnail), 0, 0));
   }
   if (type == "audio") {
     TRY_RESULT(input_audio, get_input_audio(object, std::move(input_file), std::move(input_thumbnail)));
@@ -13661,7 +13663,8 @@ td::Status Client::process_send_sticker_query(PromisedQueryPtr &query) {
     return td::Status::Error(400, "There is no sticker in the request");
   }
   auto emoji = query->arg("emoji");
-  do_send_message(make_object<td_api::inputMessageSticker>(std::move(sticker), nullptr, 0, 0, emoji.str()),
+  do_send_message(make_object<td_api::inputMessageSticker>(
+                      make_object<td_api::inputSticker>(std::move(sticker), nullptr, 0, 0), emoji.str()),
                   std::move(query));
   return td::Status::OK();
 }
@@ -13698,9 +13701,10 @@ td::Status Client::process_send_video_note_query(PromisedQueryPtr &query) {
   auto thumbnail = get_input_thumbnail(query.get());
   int32 duration = get_integer_arg(query.get(), "duration", 0, 0, MAX_DURATION);
   int32 length = get_integer_arg(query.get(), "length", 0, 0, MAX_LENGTH);
-  do_send_message(make_object<td_api::inputMessageVideoNote>(std::move(video_note), std::move(thumbnail), duration,
-                                                             length, nullptr),
-                  std::move(query));
+  do_send_message(
+      make_object<td_api::inputMessageVideoNote>(
+          make_object<td_api::inputVideoNote>(std::move(video_note), std::move(thumbnail), duration, length), nullptr),
+      std::move(query));
   return td::Status::OK();
 }
 
@@ -13712,7 +13716,8 @@ td::Status Client::process_send_voice_query(PromisedQueryPtr &query) {
   int32 duration = get_integer_arg(query.get(), "duration", 0, 0, MAX_DURATION);
   TRY_RESULT(caption, get_caption(query.get()));
   do_send_message(
-      make_object<td_api::inputMessageVoiceNote>(std::move(voice_note), duration, "", std::move(caption), nullptr),
+      make_object<td_api::inputMessageVoiceNote>(
+          make_object<td_api::inputVoiceNote>(std::move(voice_note), duration, ""), std::move(caption), nullptr),
       std::move(query));
   return td::Status::OK();
 }
@@ -16224,7 +16229,7 @@ td::Status Client::process_create_new_sticker_set_query(PromisedQueryPtr &query)
   auto name = query->arg("name");
   auto title = query->arg("title");
   auto needs_repainting = to_bool(query->arg("needs_repainting"));
-  TRY_RESULT(stickers, get_input_stickers(query.get()));
+  TRY_RESULT(stickers, get_new_stickers(query.get()));
 
   TRY_RESULT(sticker_type, get_sticker_type(query->arg("sticker_type")));
   if (to_bool(query->arg("contains_masks"))) {
@@ -16245,7 +16250,7 @@ td::Status Client::process_create_new_sticker_set_query(PromisedQueryPtr &query)
 td::Status Client::process_add_sticker_to_set_query(PromisedQueryPtr &query) {
   TRY_RESULT(user_id, get_user_id(query.get()));
   auto name = query->arg("name");
-  TRY_RESULT(sticker, get_input_sticker(query.get()));
+  TRY_RESULT(sticker, get_new_sticker(query.get()));
 
   check_user(user_id, std::move(query),
              [this, user_id, name, sticker = std::move(sticker)](PromisedQueryPtr query) mutable {
@@ -16259,7 +16264,7 @@ td::Status Client::process_replace_sticker_in_set_query(PromisedQueryPtr &query)
   TRY_RESULT(user_id, get_user_id(query.get()));
   auto name = query->arg("name");
   TRY_RESULT(input_file, get_sticker_input_file(query.get(), "old_sticker"));
-  TRY_RESULT(sticker, get_input_sticker(query.get()));
+  TRY_RESULT(sticker, get_new_sticker(query.get()));
 
   check_user(user_id, std::move(query),
              [this, user_id, name, input_file = std::move(input_file),
@@ -17862,11 +17867,12 @@ void Client::process_new_callback_query_queue(int64 user_id, int state) {
     CHECK(state == 3);
 
     CHECK(user_id == query->sender_user_id_);
-    add_update(UpdateType::CallbackQuery,
-               JsonCallbackQuery(query->id_, user_id, chat_id, message_id, message_info, query->chat_instance_,
-                                 query->payload_.get(), this),
-               150, user_id + (static_cast<int64>(3) << 33));
-
+    if (message_info != nullptr || as_tdlib_message_id(as_client_message_id_unchecked(message_id)) == message_id) {
+      add_update(UpdateType::CallbackQuery,
+                 JsonCallbackQuery(query->id_, user_id, chat_id, message_id, message_info, query->chat_instance_,
+                                   query->payload_.get(), this),
+                 150, user_id + (static_cast<int64>(3) << 33));
+    }
     queue.queue_.pop();
     state = 0;
   }
@@ -18249,6 +18255,8 @@ bool Client::need_skip_update_message(int64 chat_id, const MessageInfo *message_
     case td_api::messageUpgradedGiftPurchaseOfferRejected::ID:
     case td_api::messageChatHasProtectedContentToggled::ID:
     case td_api::messageChatHasProtectedContentDisableRequested::ID:
+    case td_api::messageChatAddedToCommunity::ID:
+    case td_api::messageChatRemovedFromCommunity::ID:
       return true;
     default:
       break;
@@ -18388,9 +18396,9 @@ bool Client::are_equal_suggested_post_prices(const td_api::SuggestedPostPrice *l
     case td_api::suggestedPostPriceStar::ID:
       return static_cast<const td_api::suggestedPostPriceStar *>(lhs)->star_count_ ==
              static_cast<const td_api::suggestedPostPriceStar *>(rhs)->star_count_;
-    case td_api::suggestedPostPriceTon::ID:
-      return static_cast<const td_api::suggestedPostPriceTon *>(lhs)->toncoin_cent_count_ ==
-             static_cast<const td_api::suggestedPostPriceTon *>(rhs)->toncoin_cent_count_;
+    case td_api::suggestedPostPriceGram::ID:
+      return static_cast<const td_api::suggestedPostPriceGram *>(lhs)->gram_cent_count_ ==
+             static_cast<const td_api::suggestedPostPriceGram *>(rhs)->gram_cent_count_;
     default:
       UNREACHABLE();
       return false;
@@ -18899,7 +18907,7 @@ td::unique_ptr<Client::MessageInfo> Client::create_message(object_ptr<td_api::me
   message_info->sender_tag = std::move(message->sender_tag_);
   message_info->paid_message_star_count = message->paid_message_star_count_;
   message_info->effect_id = message->effect_id_;
-  message_info->is_paid_post = message->is_paid_star_suggested_post_ || message->is_paid_ton_suggested_post_;
+  message_info->is_paid_post = message->is_paid_star_suggested_post_ || message->is_paid_gram_suggested_post_;
   message_info->is_outgoing = message->is_outgoing_;
   message_info->is_self_destruct = message->self_destruct_type_ != nullptr;
   message_info->is_imported = message->import_info_ != nullptr;
