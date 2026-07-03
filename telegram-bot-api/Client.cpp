@@ -12524,6 +12524,39 @@ td::Result<td_api::object_ptr<td_api::InputPollMedia>> Client::get_input_poll_me
   return r_input_message_content.move_as_ok();
 }
 
+td::Result<td_api::object_ptr<td_api::inputRichMessageMedia>> Client::get_input_rich_message_media(
+    const Query *query, td::JsonValue &&input_media) const {
+  if (input_media.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error("expected an Object");
+  }
+
+  auto &object = input_media.get_object();
+  TRY_RESULT(id, object.get_required_string_field("id"));
+  TRY_RESULT(media, object.extract_required_field("media", td::JsonValue::Type::Object));
+  auto &media_object = media.get_object();
+  TRY_RESULT(type, media_object.get_required_string_field("type"));
+  TRY_RESULT(input_message_content, get_input_media(query, media_object, type, nullptr, false, false, false, true));
+  return make_object<td_api::inputRichMessageMedia>(id, std::move(input_message_content));
+}
+
+td::Result<td::vector<td_api::object_ptr<td_api::inputRichMessageMedia>>> Client::get_input_rich_message_medias(
+    const Query *query, td::JsonValue &&value) const {
+  if (value.type() != td::JsonValue::Type::Array) {
+    return td::Status::Error(400, "Expected an Array of InputRichMessageMedia");
+  }
+
+  td::vector<object_ptr<td_api::inputRichMessageMedia>> media;
+  for (auto &input_media : value.get_array()) {
+    auto r_input_media = get_input_rich_message_media(query, std::move(input_media));
+    if (r_input_media.is_error()) {
+      return td::Status::Error(400, PSLICE()
+                                        << "Can't parse InputRichMessageMedia: " << r_input_media.error().message());
+    }
+    media.push_back(r_input_media.move_as_ok());
+  }
+  return std::move(media);
+}
+
 td::Result<td::vector<td_api::object_ptr<td_api::InputMessageContent>>> Client::get_input_message_contents(
     const Query *query, td::Slice field_name) const {
   TRY_RESULT(media, get_required_string_arg(query, field_name));

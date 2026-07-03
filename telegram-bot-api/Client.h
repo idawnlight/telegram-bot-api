@@ -720,6 +720,12 @@ class Client final : public WebhookActor::Callback {
 
   td::Result<object_ptr<td_api::InputPollMedia>> get_input_poll_media(const Query *query, td::Slice field_name) const;
 
+  td::Result<object_ptr<td_api::inputRichMessageMedia>> get_input_rich_message_media(const Query *query,
+                                                                                     td::JsonValue &&input_media) const;
+
+  td::Result<td::vector<object_ptr<td_api::inputRichMessageMedia>>> get_input_rich_message_medias(
+      const Query *query, td::JsonValue &&value) const;
+
   td::Result<td::vector<object_ptr<td_api::InputMessageContent>>> get_input_message_contents(
       const Query *query, td::Slice field_name) const;
 
