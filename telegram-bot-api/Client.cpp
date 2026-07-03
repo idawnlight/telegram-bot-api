@@ -9957,6 +9957,28 @@ bool Client::to_bool(td::MutableSlice value) {
   return value == "true" || value == "yes" || value == "1";
 }
 
+template <class T>
+td::Result<td::vector<T>> Client::get_array(td::JsonValue &&values, td::Slice class_name,
+                                            td::Result<T> (*func)(td::JsonValue &&value)) {
+  td::vector<T> items;
+  if (values.type() != td::JsonValue::Type::Array) {
+    if (values.type() == td::JsonValue::Type::Null) {
+      return std::move(items);
+    }
+    return td::Status::Error(400, PSLICE() << "Expected an Array of " << class_name);
+  }
+
+  for (auto &value : values.get_array()) {
+    auto r_item = func(std::move(value));
+    if (r_item.is_error()) {
+      return td::Status::Error(400, PSLICE() << "Can't parse " << class_name << ": " << r_item.error().message());
+    }
+    items.push_back(r_item.move_as_ok());
+  }
+
+  return std::move(items);
+}
+
 td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_to(
     CheckedReplyParameters &&reply_parameters) {
   if (reply_parameters.reply_to_ephemeral_message_id > 0) {
@@ -10324,18 +10346,7 @@ td::Result<td_api::object_ptr<td_api::ReplyMarkup>> Client::get_reply_markup(td:
   TRY_RESULT(keyboard, object.extract_optional_field("keyboard", td::JsonValue::Type::Array));
   if (keyboard.type() == td::JsonValue::Type::Array) {
     for (auto &row : keyboard.get_array()) {
-      td::vector<object_ptr<td_api::keyboardButton>> new_row;
-      if (row.type() != td::JsonValue::Type::Array) {
-        return td::Status::Error(400, "Field \"keyboard\" must be an Array of Arrays");
-      }
-      for (auto &button : row.get_array()) {
-        auto r_button = get_keyboard_button(std::move(button));
-        if (r_button.is_error()) {
-          return td::Status::Error(400, PSLICE() << "Can't parse keyboard button: " << r_button.error().message());
-        }
-        new_row.push_back(r_button.move_as_ok());
-      }
-
+      TRY_RESULT(new_row, get_array(std::move(row), "KeyboardButton", get_keyboard_button));
       rows.push_back(std::move(new_row));
     }
   }
@@ -10465,23 +10476,7 @@ td::Result<td_api::object_ptr<td_api::labeledPricePart>> Client::get_labeled_pri
 
 td::Result<td::vector<td_api::object_ptr<td_api::labeledPricePart>>> Client::get_labeled_price_parts(
     td::JsonValue &&value) {
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of labeled prices");
-  }
-
-  td::vector<object_ptr<td_api::labeledPricePart>> prices;
-  for (auto &price : value.get_array()) {
-    auto r_labeled_price = get_labeled_price_part(std::move(price));
-    if (r_labeled_price.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse labeled price: " << r_labeled_price.error().message());
-    }
-    prices.push_back(r_labeled_price.move_as_ok());
-  }
-  if (prices.empty()) {
-    return td::Status::Error(400, "There must be at least one price");
-  }
-
-  return std::move(prices);
+  return get_array(std::move(value), "LabeledPrice", get_labeled_price_part);
 }
 
 td::Result<td::vector<td::int64>> Client::get_suggested_tip_amounts(td::JsonValue &&value) {
@@ -10545,27 +10540,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::shippingOption>>> Client::get_s
     return td::Status::Error(400, "Can't parse shipping options JSON object");
   }
 
-  return get_shipping_options(r_value.move_as_ok());
-}
-
-td::Result<td::vector<td_api::object_ptr<td_api::shippingOption>>> Client::get_shipping_options(td::JsonValue &&value) {
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of shipping options");
-  }
-
-  td::vector<object_ptr<td_api::shippingOption>> options;
-  for (auto &option : value.get_array()) {
-    auto r_shipping_option = get_shipping_option(std::move(option));
-    if (r_shipping_option.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse shipping option: " << r_shipping_option.error().message());
-    }
-    options.push_back(r_shipping_option.move_as_ok());
-  }
-  if (options.empty()) {
-    return td::Status::Error(400, "There must be at least one shipping option");
-  }
-
-  return std::move(options);
+  return get_array(r_value.move_as_ok(), "ShippingOption", get_shipping_option);
 }
 
 td_api::object_ptr<td_api::ChatAction> Client::get_chat_action(const Query *query) {
@@ -11267,20 +11242,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::botCommand>>> Client::get_bot_c
     return td::Status::Error(400, "Can't parse commands JSON object");
   }
 
-  auto value = r_value.move_as_ok();
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of BotCommand");
-  }
-
-  td::vector<object_ptr<td_api::botCommand>> bot_commands;
-  for (auto &command : value.get_array()) {
-    auto r_bot_command = get_bot_command(std::move(command));
-    if (r_bot_command.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse BotCommand: " << r_bot_command.error().message());
-    }
-    bot_commands.push_back(r_bot_command.move_as_ok());
-  }
-  return std::move(bot_commands);
+  return get_array(r_value.move_as_ok(), "BotCommand", get_bot_command);
 }
 
 td::Result<td_api::object_ptr<td_api::botMenuButton>> Client::get_bot_menu_button(td::JsonValue &&value) {
@@ -11755,20 +11717,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::inputPassportElementError>>> Cl
     return td::Status::Error(400, "Can't parse errors JSON object");
   }
 
-  auto value = r_value.move_as_ok();
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of PassportElementError");
-  }
-
-  td::vector<object_ptr<td_api::inputPassportElementError>> errors;
-  for (auto &input_error : value.get_array()) {
-    auto r_error = get_passport_element_error(std::move(input_error));
-    if (r_error.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse PassportElementError: " << r_error.error().message());
-    }
-    errors.push_back(r_error.move_as_ok());
-  }
-  return std::move(errors);
+  return get_array(r_value.move_as_ok(), "PassportElementError", get_passport_element_error);
 }
 
 td::JsonValue Client::get_input_entities(const Query *query, td::Slice field_name) {
@@ -12459,7 +12408,7 @@ td::Result<td_api::object_ptr<td_api::inputVoiceNote>> Client::get_input_voice_n
 }
 
 td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_checklist_task(
-    td::JsonValue &&input_task) const {
+    td::JsonValue &&input_task) {
   if (input_task.type() != td::JsonValue::Type::Object) {
     return td::Status::Error("expected an Object");
   }
@@ -12472,23 +12421,6 @@ td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_che
   TRY_RESULT(text, get_formatted_text(std::move(input_text), std::move(parse_mode), std::move(entities)));
 
   return make_object<td_api::inputChecklistTask>(id, std::move(text));
-}
-
-td::Result<td::vector<td_api::object_ptr<td_api::inputChecklistTask>>> Client::get_input_checklist_tasks(
-    td::JsonValue &&value) const {
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of InputChecklistTask");
-  }
-
-  td::vector<object_ptr<td_api::inputChecklistTask>> tasks;
-  for (auto &input_task : value.get_array()) {
-    auto r_task = get_input_checklist_task(std::move(input_task));
-    if (r_task.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse InputChecklistTask: " << r_task.error().message());
-    }
-    tasks.push_back(r_task.move_as_ok());
-  }
-  return std::move(tasks);
 }
 
 td::Result<td_api::object_ptr<td_api::inputChecklist>> Client::get_input_checklist(
@@ -12505,7 +12437,7 @@ td::Result<td_api::object_ptr<td_api::inputChecklist>> Client::get_input_checkli
   TRY_RESULT(others_can_add_tasks, object.get_optional_bool_field("others_can_add_tasks"));
   TRY_RESULT(others_can_mark_tasks_as_done, object.get_optional_bool_field("others_can_mark_tasks_as_done"));
   TRY_RESULT(input_tasks, object.extract_required_field("tasks", td::JsonValue::Type::Array));
-  TRY_RESULT(tasks, get_input_checklist_tasks(std::move(input_tasks)));
+  TRY_RESULT(tasks, get_array(std::move(input_tasks), "InputChecklistTask", get_input_checklist_task));
 
   return make_object<td_api::inputChecklist>(std::move(title), std::move(tasks), others_can_add_tasks,
                                              others_can_mark_tasks_as_done);
@@ -13027,20 +12959,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::ReactionType>>> Client::get_rea
     return td::Status::Error(400, "Can't parse reaction types JSON object");
   }
 
-  auto value = r_value.move_as_ok();
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of ReactionType");
-  }
-
-  td::vector<object_ptr<td_api::ReactionType>> reaction_types;
-  for (auto &type : value.get_array()) {
-    auto r_reaction_type = get_reaction_type(std::move(type));
-    if (r_reaction_type.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse ReactionType: " << r_reaction_type.error().message());
-    }
-    reaction_types.push_back(r_reaction_type.move_as_ok());
-  }
-  return std::move(reaction_types);
+  return get_array(r_value.move_as_ok(), "ReactionType", get_reaction_type);
 }
 
 td::Result<td_api::object_ptr<td_api::InputStoryAreaType>> Client::get_input_story_area_type(td::JsonValue &&value) {
@@ -13129,19 +13048,7 @@ td::Result<td_api::object_ptr<td_api::inputStoryAreas>> Client::get_input_story_
     return td::Status::Error(400, "Can't parse story areas JSON object");
   }
 
-  auto value = r_value.move_as_ok();
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of InputStoryArea");
-  }
-
-  td::vector<object_ptr<td_api::inputStoryArea>> input_story_areas;
-  for (auto &area : value.get_array()) {
-    auto r_input_story_area = get_input_story_area(std::move(area));
-    if (r_input_story_area.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse InputStoryArea: " << r_input_story_area.error().message());
-    }
-    input_story_areas.push_back(r_input_story_area.move_as_ok());
-  }
+  TRY_RESULT(input_story_areas, get_array(r_value.move_as_ok(), "InputStoryArea", get_input_story_area));
   return make_object<td_api::inputStoryAreas>(std::move(input_story_areas));
 }
 

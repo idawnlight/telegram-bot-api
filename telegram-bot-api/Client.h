@@ -499,6 +499,10 @@ class Client final : public WebhookActor::Callback {
   static bool is_reply_in_same_topic(const object_ptr<td_api::MessageTopic> &reply_topic_id,
                                      const object_ptr<td_api::MessageTopic> &topic_id);
 
+  template <class T>
+  static td::Result<td::vector<T>> get_array(td::JsonValue &&values, td::Slice class_name,
+                                             td::Result<T> (*func)(td::JsonValue &&value));
+
   static object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to(CheckedReplyParameters &&reply_parameters);
 
   static object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to_unchecked(
@@ -539,8 +543,6 @@ class Client final : public WebhookActor::Callback {
   static td::Result<object_ptr<td_api::shippingOption>> get_shipping_option(td::JsonValue &&option);
 
   static td::Result<td::vector<object_ptr<td_api::shippingOption>>> get_shipping_options(const Query *query);
-
-  static td::Result<td::vector<object_ptr<td_api::shippingOption>>> get_shipping_options(td::JsonValue &&value);
 
   td::Result<object_ptr<td_api::InputMessageContent>> get_input_message_content(
       const Query *query, td::JsonObject &object, bool is_input_message_content_required) const;
@@ -703,9 +705,7 @@ class Client final : public WebhookActor::Callback {
   static td::Result<object_ptr<td_api::inputVoiceNote>> get_input_voice_note(
       const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file);
 
-  td::Result<object_ptr<td_api::inputChecklistTask>> get_input_checklist_task(td::JsonValue &&input_task) const;
-
-  td::Result<td::vector<object_ptr<td_api::inputChecklistTask>>> get_input_checklist_tasks(td::JsonValue &&value) const;
+  static td::Result<object_ptr<td_api::inputChecklistTask>> get_input_checklist_task(td::JsonValue &&input_task);
 
   td::Result<object_ptr<td_api::inputChecklist>> get_input_checklist(const Query *query,
                                                                      td::JsonValue &&input_checklist) const;
