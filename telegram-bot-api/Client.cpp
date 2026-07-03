@@ -11996,6 +11996,45 @@ td::Result<td_api::object_ptr<td_api::pageBlockCaption>> Client::get_page_block_
   }
 }
 
+td::Result<td_api::object_ptr<td_api::pageBlockTableCell>> Client::get_page_block_table_cell(td::JsonValue &&value) {
+  if (value.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error(400, "RichBlockTableCell must be an object");
+  }
+
+  auto &object = value.get_object();
+  TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+  TRY_RESULT(is_header, object.get_optional_bool_field("is_header"));
+  TRY_RESULT(colspan, object.get_optional_int_field("colspan"));
+  TRY_RESULT(rowspan, object.get_optional_int_field("rowspan"));
+
+  object_ptr<td_api::PageBlockHorizontalAlignment> align;
+  TRY_RESULT(align_str, object.get_optional_string_field("align"));
+  if (align_str == "left" || (align_str.empty() && !is_header)) {
+    align = make_object<td_api::pageBlockHorizontalAlignmentLeft>();
+  } else if (align_str == "center" || (align_str.empty() && is_header)) {
+    align = make_object<td_api::pageBlockHorizontalAlignmentCenter>();
+  } else if (align_str == "right") {
+    align = make_object<td_api::pageBlockHorizontalAlignmentRight>();
+  } else {
+    return td::Status::Error(400, "Invalid horizontal alignment specified");
+  }
+
+  object_ptr<td_api::PageBlockVerticalAlignment> valign;
+  TRY_RESULT(valign_str, object.get_optional_string_field("valign"));
+  if (valign_str == "top") {
+    valign = make_object<td_api::pageBlockVerticalAlignmentTop>();
+  } else if (valign_str == "middle" || valign_str.empty()) {
+    valign = make_object<td_api::pageBlockVerticalAlignmentMiddle>();
+  } else if (valign_str == "bottom") {
+    valign = make_object<td_api::pageBlockVerticalAlignmentBottom>();
+  } else {
+    return td::Status::Error(400, "Invalid vertical alignment specified");
+  }
+
+  return make_object<td_api::pageBlockTableCell>(std::move(text), is_header, colspan, rowspan, std::move(align),
+                                                 std::move(valign));
+}
+
 td::Result<td_api::object_ptr<td_api::RichText>> Client::get_rich_text(td::JsonValue &&value) {
   switch (value.type()) {
     case td::JsonValue::Type::Null:
