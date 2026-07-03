@@ -271,6 +271,7 @@ bool Client::init_methods() {
   methods_.emplace("editmessagereplymarkup", &Client::process_edit_message_reply_markup_query);
   methods_.emplace("deletemessage", &Client::process_delete_message_query);
   methods_.emplace("deletemessages", &Client::process_delete_messages_query);
+  methods_.emplace("deleteephemeralmessage", &Client::process_delete_ephemeral_message_query);
   methods_.emplace("deletemessagereaction", &Client::process_delete_message_reaction_query);
   methods_.emplace("deleteallmessagereactions", &Client::process_delete_all_message_reactions_query);
   methods_.emplace("poststory", &Client::process_post_story_query);
@@ -14527,6 +14528,19 @@ td::Status Client::process_delete_messages_query(PromisedQueryPtr &query) {
                    send_request(make_object<td_api::deleteMessages>(chat_id, std::move(message_ids), true),
                                 td::make_unique<TdOnOkQueryCallback>(std::move(query)));
                  });
+  return td::Status::OK();
+}
+
+td::Status Client::process_delete_ephemeral_message_query(PromisedQueryPtr &query) {
+  auto chat_id = query->arg("chat_id");
+  TRY_RESULT(receiver_user_id, get_user_id(query.get(), "receiver_user_id"));
+  auto ephemeral_message_id = get_integer_arg(query.get(), "ephemeral_message_id", 0);
+  check_chat(chat_id, AccessRights::Read, std::move(query),
+             [this, receiver_user_id, ephemeral_message_id](int64 chat_id, PromisedQueryPtr query) {
+               send_request(
+                   make_object<td_api::deleteEphemeralMessage>(chat_id, receiver_user_id, ephemeral_message_id),
+                   td::make_unique<TdOnOkQueryCallback>(std::move(query)));
+             });
   return td::Status::OK();
 }
 
