@@ -1196,6 +1196,7 @@ class Client final : public WebhookActor::Callback {
     int64 sender_user_id = 0;
     int64 sender_chat_id = 0;
     int64 chat_id = 0;
+    object_ptr<td_api::MessageSender> receiver_id;
     int32 date = 0;
     int32 edit_date = 0;
     int32 initial_send_date = 0;

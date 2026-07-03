@@ -4692,6 +4692,9 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
   if (forum_topic_id != 0) {
     object("message_thread_id", forum_topic_id);
   }
+  if (message_->receiver_id != nullptr) {
+    client_->json_store_message_sender(object, message_->receiver_id, "receiver_user", "receiver_chat");
+  }
   if (message_->initial_send_date > 0) {
     CHECK(message_->forward_origin != nullptr);
     object("forward_origin", JsonMessageOrigin(message_->forward_origin.get(), message_->initial_send_date, client_));
@@ -18855,6 +18858,7 @@ td::unique_ptr<Client::MessageInfo> Client::create_message(object_ptr<td_api::me
   int64 chat_id = message->chat_id_;
   message_info->id = message->id_;
   message_info->chat_id = chat_id;
+  message_info->receiver_id = std::move(message->receiver_id_);
   message_info->date = message->date_;
   message_info->edit_date = message->edit_date_;
   message_info->media_album_id = message->media_album_id_;
