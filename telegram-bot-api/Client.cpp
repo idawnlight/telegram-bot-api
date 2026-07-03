@@ -10695,13 +10695,13 @@ td::Result<td_api::object_ptr<td_api::inputThumbnail>> Client::get_input_thumbna
 }
 
 td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_message_content(
-    td::JsonValue &input_message_content, bool is_input_message_content_required) {
+    const Query *query, td::JsonValue &input_message_content, bool is_input_message_content_required) const {
   CHECK(input_message_content.type() == td::JsonValue::Type::Object);
   auto &object = input_message_content.get_object();
 
   if (object.has_field("rich_message")) {
     TRY_RESULT(rich_message, object.extract_required_field("rich_message", td::JsonValue::Type::Object));
-    TRY_RESULT(input_rich_message, get_input_rich_message(std::move(rich_message)));
+    TRY_RESULT(input_rich_message, get_input_rich_message(query, std::move(rich_message)));
     return make_object<td_api::inputMessageRichMessage>(std::move(input_rich_message), false);
   }
 
@@ -10855,7 +10855,7 @@ td::Result<td_api::object_ptr<td_api::inlineQueryResultsButton>> Client::get_inl
 }
 
 td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Client::get_inline_query_results(
-    const Query *query, BotUserIds &bot_user_ids) {
+    const Query *query, BotUserIds &bot_user_ids) const {
   auto results_encoded = query->arg("results");
   if (results_encoded.empty()) {
     return td::vector<object_ptr<td_api::InputInlineQueryResult>>();
@@ -10868,11 +10868,11 @@ td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Clien
         400, PSLICE() << "Can't parse JSON encoded inline query results: " << r_values.error().message());
   }
 
-  return get_inline_query_results(r_values.move_as_ok(), bot_user_ids);
+  return get_inline_query_results(query, r_values.move_as_ok(), bot_user_ids);
 }
 
 td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Client::get_inline_query_results(
-    td::JsonValue &&values, BotUserIds &bot_user_ids) {
+    const Query *query, td::JsonValue &&values, BotUserIds &bot_user_ids) const {
   if (values.type() == td::JsonValue::Type::Null) {
     return td::vector<object_ptr<td_api::InputInlineQueryResult>>();
   }
@@ -10886,7 +10886,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Clien
 
   td::vector<object_ptr<td_api::InputInlineQueryResult>> inline_query_results;
   for (auto &value : values.get_array()) {
-    auto r_inline_query_result = get_inline_query_result(std::move(value), bot_user_ids);
+    auto r_inline_query_result = get_inline_query_result(query, std::move(value), bot_user_ids);
     if (r_inline_query_result.is_error()) {
       return td::Status::Error(
           400, PSLICE() << "Can't parse inline query result: " << r_inline_query_result.error().message());
@@ -10898,7 +10898,7 @@ td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Clien
 }
 
 td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inline_query_result(
-    const Query *query, BotUserIds &bot_user_ids) {
+    const Query *query, BotUserIds &bot_user_ids) const {
   auto result_encoded = query->arg("result");
   if (result_encoded.empty()) {
     return td::Status::Error(400, "Result isn't specified");
@@ -10911,11 +10911,11 @@ td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inlin
         400, PSLICE() << "Can't parse JSON encoded web view query results " << r_value.error().message());
   }
 
-  return get_inline_query_result(r_value.move_as_ok(), bot_user_ids);
+  return get_inline_query_result(query, r_value.move_as_ok(), bot_user_ids);
 }
 
 td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inline_query_result(
-    td::JsonValue &&value, BotUserIds &bot_user_ids) {
+    const Query *query, td::JsonValue &&value, BotUserIds &bot_user_ids) const {
   if (value.type() != td::JsonValue::Type::Object) {
     return td::Status::Error(400, "Inline query result must be an object");
   }
@@ -10948,7 +10948,7 @@ td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inlin
     }
   } else {
     TRY_RESULT(input_message_content_result,
-               get_input_message_content(input_message_content_obj, is_input_message_content_required));
+               get_input_message_content(query, input_message_content_obj, is_input_message_content_required));
     input_message_content = std::move(input_message_content_result);
   }
   TRY_RESULT(input_caption, object.get_optional_string_field("caption"));
@@ -11981,7 +11981,7 @@ td::Result<td_api::object_ptr<td_api::inputMessageText>> Client::get_input_messa
   return make_object<td_api::inputMessageText>(std::move(formatted_text), std::move(link_preview_options), false);
 }
 
-td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_message(const Query *query) {
+td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_message(const Query *query) const {
   auto rich_message = query->arg("rich_message");
   if (rich_message.empty()) {
     return td::Status::Error(400, "Rich message must be non-empty");
@@ -11994,10 +11994,11 @@ td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_
     return td::Status::Error(400, "Can't parse rich message JSON object");
   }
 
-  return get_input_rich_message(r_value.move_as_ok());
+  return get_input_rich_message(query, r_value.move_as_ok());
 }
 
-td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_message(td::JsonValue &&value) {
+td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_message(const Query *query,
+                                                                                        td::JsonValue &&value) const {
   if (value.type() != td::JsonValue::Type::Object) {
     return td::Status::Error(400, "Object expected as rich message");
   }
@@ -12007,10 +12008,12 @@ td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_
   auto result = make_object<td_api::inputRichMessage>(nullptr, is_rtl, !skip_entity_detection);
   if (object.has_field("markdown")) {
     TRY_RESULT(text, object.get_required_string_field("markdown"));
-    result->source_ = make_object<td_api::richMessageSourceMarkdown>(text, td::Auto());
+    TRY_RESULT(media, get_input_rich_message_medias(query, object.extract_field("media")));
+    result->source_ = make_object<td_api::richMessageSourceMarkdown>(text, std::move(media));
   } else if (object.has_field("html")) {
     TRY_RESULT(text, object.get_required_string_field("html"));
-    result->source_ = make_object<td_api::richMessageSourceHtml>(text, td::Auto());
+    TRY_RESULT(media, get_input_rich_message_medias(query, object.extract_field("media")));
+    result->source_ = make_object<td_api::richMessageSourceHtml>(text, std::move(media));
   } else {
     return td::Status::Error(400, "Rich message must be non-empty");
   }
@@ -12541,11 +12544,14 @@ td::Result<td_api::object_ptr<td_api::inputRichMessageMedia>> Client::get_input_
 
 td::Result<td::vector<td_api::object_ptr<td_api::inputRichMessageMedia>>> Client::get_input_rich_message_medias(
     const Query *query, td::JsonValue &&value) const {
+  td::vector<object_ptr<td_api::inputRichMessageMedia>> media;
   if (value.type() != td::JsonValue::Type::Array) {
+    if (value.type() == td::JsonValue::Type::Null) {
+      return std::move(media);
+    }
     return td::Status::Error(400, "Expected an Array of InputRichMessageMedia");
   }
 
-  td::vector<object_ptr<td_api::inputRichMessageMedia>> media;
   for (auto &input_media : value.get_array()) {
     auto r_input_media = get_input_rich_message_media(query, std::move(input_media));
     if (r_input_media.is_error()) {

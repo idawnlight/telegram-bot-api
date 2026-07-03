@@ -542,8 +542,8 @@ class Client final : public WebhookActor::Callback {
 
   static td::Result<td::vector<object_ptr<td_api::shippingOption>>> get_shipping_options(td::JsonValue &&value);
 
-  static td::Result<object_ptr<td_api::InputMessageContent>> get_input_message_content(
-      td::JsonValue &input_message_content, bool is_input_message_content_required);
+  td::Result<object_ptr<td_api::InputMessageContent>> get_input_message_content(
+      const Query *query, td::JsonValue &input_message_content, bool is_input_message_content_required) const;
 
   static object_ptr<td_api::ChatAction> get_chat_action(const Query *query);
 
@@ -565,17 +565,18 @@ class Client final : public WebhookActor::Callback {
   static td::Result<object_ptr<td_api::inlineQueryResultsButton>> get_inline_query_results_button(
       td::MutableSlice value);
 
-  static td::Result<object_ptr<td_api::InputInlineQueryResult>> get_inline_query_result(const Query *query,
-                                                                                        BotUserIds &bot_user_ids);
+  td::Result<object_ptr<td_api::InputInlineQueryResult>> get_inline_query_result(const Query *query,
+                                                                                 BotUserIds &bot_user_ids) const;
 
-  static td::Result<object_ptr<td_api::InputInlineQueryResult>> get_inline_query_result(td::JsonValue &&value,
-                                                                                        BotUserIds &bot_user_ids);
+  td::Result<object_ptr<td_api::InputInlineQueryResult>> get_inline_query_result(const Query *query,
+                                                                                 td::JsonValue &&value,
+                                                                                 BotUserIds &bot_user_ids) const;
 
-  static td::Result<td::vector<object_ptr<td_api::InputInlineQueryResult>>> get_inline_query_results(
-      const Query *query, BotUserIds &bot_user_ids);
+  td::Result<td::vector<object_ptr<td_api::InputInlineQueryResult>>> get_inline_query_results(
+      const Query *query, BotUserIds &bot_user_ids) const;
 
-  static td::Result<td::vector<object_ptr<td_api::InputInlineQueryResult>>> get_inline_query_results(
-      td::JsonValue &&value, BotUserIds &bot_user_ids);
+  td::Result<td::vector<object_ptr<td_api::InputInlineQueryResult>>> get_inline_query_results(
+      const Query *query, td::JsonValue &&value, BotUserIds &bot_user_ids) const;
 
   struct BotCommandScope {
     object_ptr<td_api::BotCommandScope> scope_;
@@ -663,9 +664,10 @@ class Client final : public WebhookActor::Callback {
       td::string text, object_ptr<td_api::linkPreviewOptions> link_preview_options, td::string parse_mode,
       td::JsonValue &&input_entities);
 
-  static td::Result<object_ptr<td_api::inputRichMessage>> get_input_rich_message(const Query *query);
+  td::Result<object_ptr<td_api::inputRichMessage>> get_input_rich_message(const Query *query) const;
 
-  static td::Result<object_ptr<td_api::inputRichMessage>> get_input_rich_message(td::JsonValue &&value);
+  td::Result<object_ptr<td_api::inputRichMessage>> get_input_rich_message(const Query *query,
+                                                                          td::JsonValue &&value) const;
 
   static td::Result<object_ptr<td_api::location>> get_location(const Query *query);
 
