@@ -12262,6 +12262,13 @@ td::Result<td_api::object_ptr<td_api::inputVideo>> Client::get_input_video(
                                          supports_streaming);
 }
 
+td::Result<td_api::object_ptr<td_api::inputVoiceNote>> Client::get_input_voice_note(
+    const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file) {
+  TRY_RESULT(duration, object.get_optional_int_field("duration"));
+  duration = td::clamp(duration, 0, MAX_DURATION);
+  return make_object<td_api::inputVoiceNote>(std::move(input_file), duration, td::string());
+}
+
 td::Result<td_api::object_ptr<td_api::inputChecklistTask>> Client::get_input_checklist_task(
     td::JsonValue &&input_task) const {
   if (input_task.type() != td::JsonValue::Type::Object) {
@@ -12350,13 +12357,14 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
   TRY_RESULT(has_spoiler, object.get_optional_bool_field("has_spoiler"));
   TRY_RESULT(type, object.get_required_string_field("type"));
 
-  return get_input_media(query, object, type, std::move(caption), show_caption_above_media, has_spoiler, for_album);
+  return get_input_media(query, object, type, std::move(caption), show_caption_above_media, has_spoiler, for_album,
+                         false);
 }
 
 td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_media(
     const Query *query, const td::JsonObject &object, const td::string &type,
-    object_ptr<td_api::formattedText> &&caption, bool show_caption_above_media, bool has_spoiler,
-    bool for_album) const {
+    object_ptr<td_api::formattedText> &&caption, bool show_caption_above_media, bool has_spoiler, bool for_album,
+    bool for_rich_message) const {
   TRY_RESULT(media, object.get_optional_string_field("media"));
 
   auto input_file = get_input_file(query, td::Slice(), media, false);
@@ -12388,11 +12396,21 @@ td::Result<td_api::object_ptr<td_api::InputMessageContent>> Client::get_input_me
     return make_object<td_api::inputMessageAudio>(std::move(input_audio), std::move(caption));
   }
   if (type == "document") {
+    if (for_rich_message) {
+      return td::Status::Error(PSLICE() << "type \"" << type << "\" is not allowed");
+    }
     TRY_RESULT(disable_content_type_detection, object.get_optional_bool_field("disable_content_type_detection"));
     return make_object<td_api::inputMessageDocument>(
         make_object<td_api::inputDocument>(std::move(input_file), std::move(input_thumbnail),
                                            disable_content_type_detection || for_album),
         std::move(caption));
+  }
+  if (type == "voice_note") {
+    if (!for_rich_message) {
+      return td::Status::Error(PSLICE() << "type \"" << type << "\" is not allowed");
+    }
+    TRY_RESULT(input_voice_note, get_input_voice_note(object, std::move(input_file)));
+    return make_object<td_api::inputMessageVoiceNote>(std::move(input_voice_note), std::move(caption), nullptr);
   }
 
   return td::Status::Error(PSLICE() << "type \"" << type << "\" is unsupported");

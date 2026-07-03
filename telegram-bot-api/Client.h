@@ -692,6 +692,9 @@ class Client final : public WebhookActor::Callback {
       const Query *query, const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file,
       object_ptr<td_api::inputThumbnail> &&input_thumbnail) const;
 
+  static td::Result<object_ptr<td_api::inputVoiceNote>> get_input_voice_note(
+      const td::JsonObject &object, object_ptr<td_api::InputFile> &&input_file);
+
   td::Result<object_ptr<td_api::inputChecklistTask>> get_input_checklist_task(td::JsonValue &&input_task) const;
 
   td::Result<td::vector<object_ptr<td_api::inputChecklistTask>>> get_input_checklist_tasks(td::JsonValue &&value) const;
@@ -708,7 +711,7 @@ class Client final : public WebhookActor::Callback {
                                                                       const td::string &type,
                                                                       object_ptr<td_api::formattedText> &&caption,
                                                                       bool show_caption_above_media, bool has_spoiler,
-                                                                      bool for_album) const;
+                                                                      bool for_album, bool for_rich_message) const;
 
   td::Result<object_ptr<td_api::InputMessageContent>> get_input_media(const Query *query, td::Slice field_name) const;
 
