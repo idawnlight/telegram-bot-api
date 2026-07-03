@@ -11981,6 +11981,21 @@ td::Result<td_api::object_ptr<td_api::inputMessageText>> Client::get_input_messa
   return make_object<td_api::inputMessageText>(std::move(formatted_text), std::move(link_preview_options), false);
 }
 
+td::Result<td_api::object_ptr<td_api::pageBlockCaption>> Client::get_page_block_caption(td::JsonValue &&value) {
+  switch (value.type()) {
+    case td::JsonValue::Type::Null:
+      return nullptr;
+    case td::JsonValue::Type::Object: {
+      auto &object = value.get_object();
+      TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+      TRY_RESULT(credit, get_rich_text(object.extract_field("credit")));
+      return make_object<td_api::pageBlockCaption>(std::move(text), std::move(credit));
+    }
+    default:
+      return td::Status::Error(400, "RichBlockCaption must be an object");
+  }
+}
+
 td::Result<td_api::object_ptr<td_api::RichText>> Client::get_rich_text(td::JsonValue &&value) {
   switch (value.type()) {
     case td::JsonValue::Type::Null:

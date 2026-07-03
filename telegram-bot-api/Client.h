@@ -664,6 +664,8 @@ class Client final : public WebhookActor::Callback {
       td::string text, object_ptr<td_api::linkPreviewOptions> link_preview_options, td::string parse_mode,
       td::JsonValue &&input_entities);
 
+  static td::Result<object_ptr<td_api::pageBlockCaption>> get_page_block_caption(td::JsonValue &&value);
+
   static td::Result<object_ptr<td_api::RichText>> get_rich_text(td::JsonValue &&value);
 
   td::Result<object_ptr<td_api::inputRichMessage>> get_input_rich_message(const Query *query) const;
