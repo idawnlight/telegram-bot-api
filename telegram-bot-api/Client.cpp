@@ -4674,6 +4674,9 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
     }
   }
   object("message_id", as_client_message_id_unchecked(message_->id));
+  if (message_->ephemeral_message_id != 0) {
+    object("ephemeral_message_id", message_->ephemeral_message_id);
+  }
   if (message_->sender_user_id != 0) {
     object("from", JsonUser(message_->sender_user_id, client_));
   }
@@ -18859,6 +18862,7 @@ td::unique_ptr<Client::MessageInfo> Client::create_message(object_ptr<td_api::me
   message_info->id = message->id_;
   message_info->chat_id = chat_id;
   message_info->receiver_id = std::move(message->receiver_id_);
+  message_info->ephemeral_message_id = message->ephemeral_message_id_;
   message_info->date = message->date_;
   message_info->edit_date = message->edit_date_;
   message_info->media_album_id = message->media_album_id_;

@@ -1201,6 +1201,7 @@ class Client final : public WebhookActor::Callback {
     int32 edit_date = 0;
     int32 initial_send_date = 0;
     int32 sender_boost_count = 0;
+    int32 ephemeral_message_id = 0;
     int64 paid_message_star_count = 0;
     int64 guest_query_id = 0;
     object_ptr<td_api::MessageOrigin> forward_origin;
