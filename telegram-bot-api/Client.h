@@ -352,6 +352,7 @@ class Client final : public WebhookActor::Callback {
   struct InputReplyParameters {
     td::string reply_in_chat_id;
     int64 reply_to_message_id = 0;
+    int32 reply_to_ephemeral_message_id = 0;
     bool allow_sending_without_reply = false;
     object_ptr<td_api::inputTextQuote> quote;
     int32 checklist_task_id = 0;
@@ -361,6 +362,7 @@ class Client final : public WebhookActor::Callback {
   struct CheckedReplyParameters {
     int64 reply_in_chat_id = 0;
     int64 reply_to_message_id = 0;
+    int32 reply_to_ephemeral_message_id = 0;
     object_ptr<td_api::inputTextQuote> quote;
     int32 checklist_task_id = 0;
     td::string poll_option_id;
@@ -499,7 +501,8 @@ class Client final : public WebhookActor::Callback {
 
   static object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to(CheckedReplyParameters &&reply_parameters);
 
-  static object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to(InputReplyParameters &&reply_parameters);
+  static object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to_unchecked(
+      InputReplyParameters &&reply_parameters);
 
   static td::Result<InputReplyParameters> get_reply_parameters(const Query *query);
 

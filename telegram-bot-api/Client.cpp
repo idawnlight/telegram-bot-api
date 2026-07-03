@@ -9070,6 +9070,11 @@ void Client::check_reply_parameters(td::Slice chat_id_str, InputReplyParameters 
       chat_id_str, forum_topic_id, direct_messages_topic_id, std::move(query),
       [this, reply_parameters = std::move(reply_parameters), on_success = std::move(on_success)](
           int64 chat_id, object_ptr<td_api::MessageTopic> &&topic_id, PromisedQueryPtr query) mutable {
+        if (reply_parameters.reply_to_ephemeral_message_id > 0) {
+          CheckedReplyParameters checked_reply_parameters;
+          checked_reply_parameters.reply_to_ephemeral_message_id = reply_parameters.reply_to_ephemeral_message_id;
+          return on_success(chat_id, std::move(topic_id), std::move(checked_reply_parameters), std::move(query));
+        }
         auto on_reply_message_resolved =
             [this, chat_id, topic_id = std::move(topic_id), quote = std::move(reply_parameters.quote),
              checklist_task_id = reply_parameters.checklist_task_id,
@@ -9953,6 +9958,9 @@ bool Client::to_bool(td::MutableSlice value) {
 
 td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_to(
     CheckedReplyParameters &&reply_parameters) {
+  if (reply_parameters.reply_to_ephemeral_message_id > 0) {
+    return make_object<td_api::inputMessageReplyToEphemeralMessage>(reply_parameters.reply_to_ephemeral_message_id);
+  }
   if (reply_parameters.reply_to_message_id > 0) {
     if (reply_parameters.reply_in_chat_id != 0) {
       return make_object<td_api::inputMessageReplyToExternalMessage>(
@@ -9966,7 +9974,7 @@ td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_
   return nullptr;
 }
 
-td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_to(
+td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_to_unchecked(
     InputReplyParameters &&reply_parameters) {
   if (reply_parameters.reply_in_chat_id.empty() && reply_parameters.reply_to_message_id > 0) {
     return make_object<td_api::inputMessageReplyToMessage>(
@@ -10008,7 +10016,7 @@ td::Result<Client::InputReplyParameters> Client::get_reply_parameters(td::JsonVa
     return InputReplyParameters();
   }
   TRY_RESULT(chat_id, object.get_optional_string_field("chat_id"));
-  TRY_RESULT(message_id, object.get_required_int_field("message_id"));
+  TRY_RESULT(message_id, object.get_optional_int_field("message_id"));
   TRY_RESULT(allow_sending_without_reply, object.get_optional_bool_field("allow_sending_without_reply"));
   TRY_RESULT(input_quote, object.get_optional_string_field("quote"));
   TRY_RESULT(parse_mode, object.get_optional_string_field("quote_parse_mode"));
@@ -10017,10 +10025,12 @@ td::Result<Client::InputReplyParameters> Client::get_reply_parameters(td::JsonVa
   TRY_RESULT(quote_position, object.get_optional_int_field("quote_position"));
   TRY_RESULT(checklist_task_id, object.get_optional_int_field("checklist_task_id"));
   TRY_RESULT(poll_option_id, object.get_optional_string_field("poll_option_id"));
+  TRY_RESULT(ephemeral_message_id, object.get_optional_int_field("ephemeral_message_id"));
 
   InputReplyParameters result;
   result.reply_in_chat_id = std::move(chat_id);
   result.reply_to_message_id = as_tdlib_message_id(td::max(message_id, 0));
+  result.reply_to_ephemeral_message_id = td::max(ephemeral_message_id, 0);
   result.allow_sending_without_reply = allow_sending_without_reply;
   result.quote = make_object<td_api::inputTextQuote>(std::move(quote), quote_position);
   result.checklist_task_id = checklist_task_id;
@@ -14094,12 +14104,12 @@ td::Status Client::process_send_media_group_query(PromisedQueryPtr &query) {
               [this, reply_parameters = std::move(reply_parameters), disable_notification, protect_content, effect_id,
                input_message_contents = std::move(input_message_contents), reply_markup = std::move(reply_markup)](
                   const BusinessConnection *business_connection, int64 chat_id, PromisedQueryPtr query) mutable {
-                send_request(
-                    make_object<td_api::sendBusinessMessageAlbum>(
-                        business_connection->id_, chat_id, get_input_message_reply_to(std::move(reply_parameters)),
-                        disable_notification, protect_content, effect_id, std::move(input_message_contents)),
-                    td::make_unique<TdOnSendBusinessMessageAlbumCallback>(this, business_connection->id_,
-                                                                          std::move(query)));
+                send_request(make_object<td_api::sendBusinessMessageAlbum>(
+                                 business_connection->id_, chat_id,
+                                 get_input_message_reply_to_unchecked(std::move(reply_parameters)),
+                                 disable_notification, protect_content, effect_id, std::move(input_message_contents)),
+                             td::make_unique<TdOnSendBusinessMessageAlbumCallback>(this, business_connection->id_,
+                                                                                   std::move(query)));
               });
         }
 
@@ -16887,12 +16897,13 @@ void Client::do_send_message(object_ptr<td_api::InputMessageContent> input_messa
               [this, reply_parameters = std::move(reply_parameters), disable_notification, protect_content, effect_id,
                reply_markup = std::move(reply_markup), input_message_content = std::move(input_message_content)](
                   const BusinessConnection *business_connection, int64 chat_id, PromisedQueryPtr query) mutable {
-                send_request(make_object<td_api::sendBusinessMessage>(
-                                 business_connection->id_, chat_id,
-                                 get_input_message_reply_to(std::move(reply_parameters)), disable_notification,
-                                 protect_content, effect_id, std::move(reply_markup), std::move(input_message_content)),
-                             td::make_unique<TdOnReturnBusinessMessageCallback>(this, business_connection->id_,
-                                                                                std::move(query)));
+                send_request(
+                    make_object<td_api::sendBusinessMessage>(
+                        business_connection->id_, chat_id,
+                        get_input_message_reply_to_unchecked(std::move(reply_parameters)), disable_notification,
+                        protect_content, effect_id, std::move(reply_markup), std::move(input_message_content)),
+                    td::make_unique<TdOnReturnBusinessMessageCallback>(this, business_connection->id_,
+                                                                       std::move(query)));
               });
         }
 
