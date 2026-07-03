@@ -11981,6 +11981,144 @@ td::Result<td_api::object_ptr<td_api::inputMessageText>> Client::get_input_messa
   return make_object<td_api::inputMessageText>(std::move(formatted_text), std::move(link_preview_options), false);
 }
 
+td::Result<td_api::object_ptr<td_api::RichText>> Client::get_rich_text(td::JsonValue &&value) {
+  switch (value.type()) {
+    case td::JsonValue::Type::Null:
+      return nullptr;
+    case td::JsonValue::Type::String:
+      return make_object<td_api::richTextPlain>(value.get_string().str());
+    case td::JsonValue::Type::Array: {
+      td::vector<object_ptr<td_api::RichText>> texts;
+      for (auto &input_text : value.get_array()) {
+        TRY_RESULT(text, get_rich_text(std::move(input_text)));
+        texts.push_back(std::move(text));
+      }
+      return make_object<td_api::richTexts>(std::move(texts));
+    }
+    case td::JsonValue::Type::Object: {
+      auto &object = value.get_object();
+      TRY_RESULT(type, object.get_required_string_field("type"));
+      if (type == "bold") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextBold>(std::move(text));
+      }
+      if (type == "italic") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextItalic>(std::move(text));
+      }
+      if (type == "underline") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextUnderline>(std::move(text));
+      }
+      if (type == "strikethrough") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextStrikethrough>(std::move(text));
+      }
+      if (type == "spoiler") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextSpoiler>(std::move(text));
+      }
+      if (type == "date_time") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(unix_time, object.get_required_int_field("unix_time"));
+        TRY_RESULT(format, object.get_optional_string_field("date_time_format"));
+        TRY_RESULT(formatting_type, get_date_time_formatting_type(format));
+        return make_object<td_api::richTextDateTime>(std::move(text), unix_time, std::move(formatting_type));
+      }
+      if (type == "mention") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextMention>(std::move(text), td::string());
+      }
+      if (type == "hashtag") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextHashtag>(std::move(text), td::string());
+      }
+      if (type == "cashtag") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextCashtag>(std::move(text), td::string());
+      }
+      if (type == "bot_command") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextBotCommand>(std::move(text), td::string());
+      }
+      if (type == "code") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextFixed>(std::move(text));
+      }
+      if (type == "text_mention") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(user, object.extract_required_field("user", td::JsonValue::Type::Object));
+        CHECK(user.type() == td::JsonValue::Type::Object);
+        const auto &user_object = user.get_object();
+        TRY_RESULT(user_id, user_object.get_required_long_field("id"));
+        return make_object<td_api::richTextMentionName>(std::move(text), user_id);
+      }
+      if (type == "url") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(url, object.get_required_string_field("url"));
+        return make_object<td_api::richTextUrl>(std::move(text), url, false);
+      }
+      if (type == "email_address") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(email_address, object.get_required_string_field("email_address"));
+        return make_object<td_api::richTextEmailAddress>(std::move(text), email_address);
+      }
+      if (type == "bank_card_number") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextBankCardNumber>(std::move(text), td::string());
+      }
+      if (type == "subscript") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextSubscript>(std::move(text));
+      }
+      if (type == "superscript") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextSuperscript>(std::move(text));
+      }
+      if (type == "marked") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        return make_object<td_api::richTextMarked>(std::move(text));
+      }
+      if (type == "phone_number") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(phone_number, object.get_required_string_field("phone_number"));
+        return make_object<td_api::richTextPhoneNumber>(std::move(text), phone_number);
+      }
+      if (type == "custom_emoji") {
+        TRY_RESULT(custom_emoji_id, object.get_required_long_field("custom_emoji_id"));
+        TRY_RESULT(alternative_text, object.get_required_string_field("alternative_text"));
+        return make_object<td_api::richTextCustomEmoji>(custom_emoji_id, alternative_text);
+      }
+      if (type == "mathematical_expression") {
+        TRY_RESULT(expression, object.get_required_string_field("expression"));
+        return make_object<td_api::richTextMathematicalExpression>(expression);
+      }
+      if (type == "reference") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(name, object.get_required_string_field("name"));
+        return make_object<td_api::richTextReference>(name, std::move(text));
+      }
+      if (type == "reference_link") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(reference_name, object.get_required_string_field("reference_name"));
+        return make_object<td_api::richTextReferenceLink>(std::move(text), reference_name, td::string());
+      }
+      if (type == "anchor") {
+        TRY_RESULT(name, object.get_required_string_field("name"));
+        return make_object<td_api::richTextAnchor>(name);
+      }
+      if (type == "anchor_link") {
+        TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+        TRY_RESULT(anchor_name, object.get_required_string_field("anchor_name"));
+        return make_object<td_api::richTextAnchorLink>(std::move(text), anchor_name, td::string());
+      }
+      return td::Status::Error(400, "Unsupported rich text type");
+    }
+    default:
+      return td::Status::Error(400, "Invalid rich text specified");
+  }
+}
+
 td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_message(const Query *query) const {
   auto rich_message = query->arg("rich_message");
   if (rich_message.empty()) {
