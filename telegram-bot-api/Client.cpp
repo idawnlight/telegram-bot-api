@@ -10873,18 +10873,14 @@ td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Clien
 
 td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Client::get_inline_query_results(
     const Query *query, td::JsonValue &&values, BotUserIds &bot_user_ids) const {
-  if (values.type() == td::JsonValue::Type::Null) {
-    return td::vector<object_ptr<td_api::InputInlineQueryResult>>();
-  }
+  td::vector<object_ptr<td_api::InputInlineQueryResult>> inline_query_results;
   if (values.type() != td::JsonValue::Type::Array) {
+    if (values.type() == td::JsonValue::Type::Null) {
+      return std::move(inline_query_results);
+    }
     return td::Status::Error(400, "Expected an Array of inline query results");
   }
-  constexpr std::size_t MAX_INLINE_QUERY_RESULT_COUNT = 50;
-  if (values.get_array().size() > MAX_INLINE_QUERY_RESULT_COUNT) {
-    return td::Status::Error(400, "Too many inline query results specified");
-  }
 
-  td::vector<object_ptr<td_api::InputInlineQueryResult>> inline_query_results;
   for (auto &value : values.get_array()) {
     auto r_inline_query_result = get_inline_query_result(query, std::move(value), bot_user_ids);
     if (r_inline_query_result.is_error()) {
