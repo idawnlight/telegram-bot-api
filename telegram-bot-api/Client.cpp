@@ -5613,6 +5613,9 @@ class Client::JsonBotCommand final : public td::Jsonable {
     auto object = scope->enter_object();
     object("command", command_->command_);
     object("description", command_->description_);
+    if (command_->is_ephemeral_) {
+      object("is_ephemeral", td::JsonTrue());
+    }
   }
 
  private:
@@ -11236,8 +11239,9 @@ td::Result<td_api::object_ptr<td_api::botCommand>> Client::get_bot_command(td::J
 
   TRY_RESULT(command, object.get_required_string_field("command"));
   TRY_RESULT(description, object.get_required_string_field("description"));
+  TRY_RESULT(is_ephemeral, object.get_optional_bool_field("is_ephemeral"));
 
-  return make_object<td_api::botCommand>(command, description, false);
+  return make_object<td_api::botCommand>(command, description, is_ephemeral);
 }
 
 td::Result<td::vector<td_api::object_ptr<td_api::botCommand>>> Client::get_bot_commands(const Query *query) {
