@@ -538,6 +538,8 @@ class Client final : public WebhookActor::Callback {
 
   static td::Result<td::vector<object_ptr<td_api::labeledPricePart>>> get_labeled_price_parts(td::JsonValue &&value);
 
+  static td::Result<int64> get_suggested_tip_amount(td::JsonValue &&value);
+
   static td::Result<td::vector<int64>> get_suggested_tip_amounts(td::JsonValue &&value);
 
   static td::Result<object_ptr<td_api::shippingOption>> get_shipping_option(td::JsonValue &&option);
@@ -1019,7 +1021,7 @@ class Client final : public WebhookActor::Callback {
 
   void on_webhook_closed(td::Status status);
 
-  void delete_last_send_message_time(td::int64 file_size, double max_delay);
+  void delete_last_send_message_time(int64 file_size, double max_delay);
 
   void do_send_message(object_ptr<td_api::InputMessageContent> input_message_content, PromisedQueryPtr query,
                        bool force = false);
