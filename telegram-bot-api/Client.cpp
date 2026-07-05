@@ -9979,6 +9979,29 @@ td::Result<td::vector<T>> Client::get_array(td::JsonValue &&values, td::Slice cl
   return std::move(items);
 }
 
+template <class T>
+td::Result<td::vector<td_api::object_ptr<T>>> Client::get_array_generic(
+    td::JsonValue &&values, td::Slice class_name,
+    const std::function<td::Result<object_ptr<T>>(td::JsonValue &&value)> &func) {
+  td::vector<object_ptr<T>> items;
+  if (values.type() != td::JsonValue::Type::Array) {
+    if (values.type() == td::JsonValue::Type::Null) {
+      return std::move(items);
+    }
+    return td::Status::Error(400, PSLICE() << "Expected an Array of " << class_name);
+  }
+
+  for (auto &value : values.get_array()) {
+    auto r_item = func(std::move(value));
+    if (r_item.is_error()) {
+      return td::Status::Error(400, PSLICE() << "Can't parse " << class_name << ": " << r_item.error().message());
+    }
+    items.push_back(r_item.move_as_ok());
+  }
+
+  return std::move(items);
+}
+
 td_api::object_ptr<td_api::InputMessageReplyTo> Client::get_input_message_reply_to(
     CheckedReplyParameters &&reply_parameters) {
   if (reply_parameters.reply_to_ephemeral_message_id > 0) {
@@ -10354,22 +10377,12 @@ td::Result<td_api::object_ptr<td_api::ReplyMarkup>> Client::get_reply_markup(td:
   td::vector<td::vector<object_ptr<td_api::inlineKeyboardButton>>> inline_rows;
   TRY_RESULT(inline_keyboard, object.extract_optional_field("inline_keyboard", td::JsonValue::Type::Array));
   if (inline_keyboard.type() == td::JsonValue::Type::Array) {
-    for (auto &inline_row : inline_keyboard.get_array()) {
-      td::vector<object_ptr<td_api::inlineKeyboardButton>> new_inline_row;
-      if (inline_row.type() != td::JsonValue::Type::Array) {
-        return td::Status::Error(400,
-                                 "Field \"inline_keyboard\" of the InlineKeyboardMarkup must be an Array of Arrays");
-      }
-      for (auto &button : inline_row.get_array()) {
-        auto r_button = get_inline_keyboard_button(std::move(button), bot_user_ids);
-        if (r_button.is_error()) {
-          return td::Status::Error(400, PSLICE()
-                                            << "Can't parse inline keyboard button: " << r_button.error().message());
-        }
-        new_inline_row.push_back(r_button.move_as_ok());
-      }
-
-      inline_rows.push_back(std::move(new_inline_row));
+    for (auto &row : inline_keyboard.get_array()) {
+      TRY_RESULT(new_row, get_array_generic<td_api::inlineKeyboardButton>(
+                              std::move(row), "InlineKeyboardButton", [&](td::JsonValue &&button) {
+                                return get_inline_keyboard_button(std::move(button), bot_user_ids);
+                              }));
+      inline_rows.push_back(std::move(new_row));
     }
   }
 
@@ -10831,29 +10844,9 @@ td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Clien
         400, PSLICE() << "Can't parse JSON encoded inline query results: " << r_values.error().message());
   }
 
-  return get_inline_query_results(query, r_values.move_as_ok(), bot_user_ids);
-}
-
-td::Result<td::vector<td_api::object_ptr<td_api::InputInlineQueryResult>>> Client::get_inline_query_results(
-    const Query *query, td::JsonValue &&values, BotUserIds &bot_user_ids) const {
-  td::vector<object_ptr<td_api::InputInlineQueryResult>> inline_query_results;
-  if (values.type() != td::JsonValue::Type::Array) {
-    if (values.type() == td::JsonValue::Type::Null) {
-      return std::move(inline_query_results);
-    }
-    return td::Status::Error(400, "Expected an Array of inline query results");
-  }
-
-  for (auto &value : values.get_array()) {
-    auto r_inline_query_result = get_inline_query_result(query, std::move(value), bot_user_ids);
-    if (r_inline_query_result.is_error()) {
-      return td::Status::Error(
-          400, PSLICE() << "Can't parse inline query result: " << r_inline_query_result.error().message());
-    }
-    inline_query_results.push_back(r_inline_query_result.move_as_ok());
-  }
-
-  return std::move(inline_query_results);
+  return get_array_generic<td_api::InputInlineQueryResult>(
+      r_values.move_as_ok(), "InlineQueryResult",
+      [&](td::JsonValue &&value) { return get_inline_query_result(query, std::move(value), bot_user_ids); });
 }
 
 td::Result<td_api::object_ptr<td_api::InputInlineQueryResult>> Client::get_inline_query_result(
@@ -11574,26 +11567,10 @@ td::Result<td::vector<td_api::object_ptr<td_api::newSticker>>> Client::get_new_s
       LOG(INFO) << "Can't parse JSON object: " << r_value.error();
       return td::Status::Error(400, "Can't parse stickers JSON object");
     }
-    auto value = r_value.move_as_ok();
 
-    if (value.type() != td::JsonValue::Type::Array) {
-      return td::Status::Error(400, "Expected an Array of InputSticker");
-    }
-
-    constexpr std::size_t MAX_STICKER_COUNT = 50;
-    if (value.get_array().size() > MAX_STICKER_COUNT) {
-      return td::Status::Error(400, "Too many stickers specified");
-    }
-
-    td::vector<object_ptr<td_api::newSticker>> new_stickers;
-    for (auto &new_sticker : value.get_array()) {
-      auto r_new_sticker = get_new_sticker(query, std::move(new_sticker), sticker_format_str);
-      if (r_new_sticker.is_error()) {
-        return td::Status::Error(400, PSLICE() << "Can't parse InputSticker: " << r_new_sticker.error().message());
-      }
-      new_stickers.push_back(r_new_sticker.move_as_ok());
-    }
-    return std::move(new_stickers);
+    return get_array_generic<td_api::newSticker>(r_value.move_as_ok(), "InputSticker", [&](td::JsonValue &&value) {
+      return get_new_sticker(query, std::move(value), sticker_format_str);
+    });
   }
 
   TRY_RESULT(new_sticker, get_legacy_new_sticker(query));
@@ -12653,23 +12630,9 @@ td::Result<td_api::object_ptr<td_api::inputRichMessageMedia>> Client::get_input_
 
 td::Result<td::vector<td_api::object_ptr<td_api::inputRichMessageMedia>>> Client::get_input_rich_message_medias(
     const Query *query, td::JsonValue &&value) const {
-  td::vector<object_ptr<td_api::inputRichMessageMedia>> media;
-  if (value.type() != td::JsonValue::Type::Array) {
-    if (value.type() == td::JsonValue::Type::Null) {
-      return std::move(media);
-    }
-    return td::Status::Error(400, "Expected an Array of InputRichMessageMedia");
-  }
-
-  for (auto &input_media : value.get_array()) {
-    auto r_input_media = get_input_rich_message_media(query, std::move(input_media));
-    if (r_input_media.is_error()) {
-      return td::Status::Error(400, PSLICE()
-                                        << "Can't parse InputRichMessageMedia: " << r_input_media.error().message());
-    }
-    media.push_back(r_input_media.move_as_ok());
-  }
-  return std::move(media);
+  return get_array_generic<td_api::inputRichMessageMedia>(
+      std::move(value), "InputRichMessageMedia",
+      [&](td::JsonValue &&input_media) { return get_input_rich_message_media(query, std::move(input_media)); });
 }
 
 td::Result<td::vector<td_api::object_ptr<td_api::InputMessageContent>>> Client::get_input_message_contents(
@@ -12683,25 +12646,9 @@ td::Result<td::vector<td_api::object_ptr<td_api::InputMessageContent>>> Client::
     return td::Status::Error(400, "Can't parse media JSON object");
   }
 
-  return get_input_message_contents(query, r_value.move_as_ok());
-}
-
-td::Result<td::vector<td_api::object_ptr<td_api::InputMessageContent>>> Client::get_input_message_contents(
-    const Query *query, td::JsonValue &&value) const {
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of InputMedia");
-  }
-
-  td::vector<object_ptr<td_api::InputMessageContent>> contents;
-  for (auto &input_media : value.get_array()) {
-    auto r_input_message_content = get_input_media(query, std::move(input_media), true);
-    if (r_input_message_content.is_error()) {
-      return td::Status::Error(400, PSLICE()
-                                        << "Can't parse InputMedia: " << r_input_message_content.error().message());
-    }
-    contents.push_back(r_input_message_content.move_as_ok());
-  }
-  return std::move(contents);
+  return get_array_generic<td_api::InputMessageContent>(r_value.move_as_ok(), "InputMedia", [&](td::JsonValue &&value) {
+    return get_input_media(query, std::move(value), true);
+  });
 }
 
 td::Result<td_api::object_ptr<td_api::inputPaidMedia>> Client::get_input_paid_media(const Query *query,
@@ -12781,24 +12728,9 @@ td::Result<td::vector<td_api::object_ptr<td_api::inputPaidMedia>>> Client::get_p
     return td::Status::Error(400, "Can't parse paid media JSON object");
   }
 
-  return get_paid_media(query, r_value.move_as_ok());
-}
-
-td::Result<td::vector<td_api::object_ptr<td_api::inputPaidMedia>>> Client::get_paid_media(const Query *query,
-                                                                                          td::JsonValue &&value) const {
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of InputPaidMedia");
-  }
-
-  td::vector<object_ptr<td_api::inputPaidMedia>> paid_media;
-  for (auto &input_media : value.get_array()) {
-    auto r_paid_media = get_input_paid_media(query, std::move(input_media));
-    if (r_paid_media.is_error()) {
-      return td::Status::Error(400, PSLICE() << "Can't parse InputPaidMedia: " << r_paid_media.error().message());
-    }
-    paid_media.push_back(r_paid_media.move_as_ok());
-  }
-  return std::move(paid_media);
+  return get_array_generic<td_api::inputPaidMedia>(
+      r_value.move_as_ok(), "InputPaidMedia",
+      [&](td::JsonValue &&input_media) { return get_input_paid_media(query, std::move(input_media)); });
 }
 
 td::Result<td_api::object_ptr<td_api::inputMessageInvoice>> Client::get_input_message_invoice(
@@ -12889,34 +12821,29 @@ td::Result<td::vector<td_api::object_ptr<td_api::inputPollOption>>> Client::get_
     return td::Status::Error(400, "Can't parse options JSON object");
   }
 
-  auto value = r_value.move_as_ok();
-  if (value.type() != td::JsonValue::Type::Array) {
-    return td::Status::Error(400, "Expected an Array of String as options");
-  }
+  return get_array_generic<td_api::inputPollOption>(
+      r_value.move_as_ok(), "InputPollOption",
+      [&](td::JsonValue &&input_option) -> td::Result<object_ptr<td_api::inputPollOption>> {
+        if (input_option.type() != td::JsonValue::Type::String) {
+          if (input_option.type() == td::JsonValue::Type::Object) {
+            auto &object = input_option.get_object();
+            TRY_RESULT(text, object.get_required_string_field("text"));
+            TRY_RESULT(parse_mode, object.get_optional_string_field("text_parse_mode"));
+            TRY_RESULT(option_text, get_formatted_text(std::move(text), std::move(parse_mode),
+                                                       object.extract_field("text_entities")));
+            auto r_media = get_input_poll_media(query, object.extract_field("media"), true);
+            if (r_media.is_error()) {
+              return td::Status::Error(400, PSLICE()
+                                                << "Failed to parse poll option media: " << r_media.error().message());
+            }
+            return make_object<td_api::inputPollOption>(std::move(option_text), r_media.move_as_ok());
+          }
 
-  td::vector<object_ptr<td_api::inputPollOption>> options;
-  for (auto &input_option : value.get_array()) {
-    if (input_option.type() != td::JsonValue::Type::String) {
-      if (input_option.type() == td::JsonValue::Type::Object) {
-        auto &object = input_option.get_object();
-        TRY_RESULT(text, object.get_required_string_field("text"));
-        TRY_RESULT(parse_mode, object.get_optional_string_field("text_parse_mode"));
-        TRY_RESULT(option_text,
-                   get_formatted_text(std::move(text), std::move(parse_mode), object.extract_field("text_entities")));
-        auto r_media = get_input_poll_media(query, object.extract_field("media"), true);
-        if (r_media.is_error()) {
-          return td::Status::Error(400, PSLICE() << "Failed to parse poll option media: " << r_media.error().message());
+          return td::Status::Error(400, "Expected InputPollOption to be an Object");
         }
-        options.push_back(make_object<td_api::inputPollOption>(std::move(option_text), r_media.move_as_ok()));
-        continue;
-      }
-
-      return td::Status::Error(400, "Expected an option to be of type String");
-    }
-    options.push_back(make_object<td_api::inputPollOption>(
-        make_object<td_api::formattedText>(input_option.get_string().str(), td::Auto()), nullptr));
-  }
-  return std::move(options);
+        return make_object<td_api::inputPollOption>(
+            make_object<td_api::formattedText>(input_option.get_string().str(), td::Auto()), nullptr);
+      });
 }
 
 td::Result<td_api::object_ptr<td_api::ReactionType>> Client::get_reaction_type(td::JsonValue &&value) {

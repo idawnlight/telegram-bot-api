@@ -29,6 +29,7 @@
 #include "td/utils/Status.h"
 #include "td/utils/WaitFreeHashMap.h"
 
+#include <functional>
 #include <limits>
 #include <memory>
 #include <queue>
@@ -503,6 +504,11 @@ class Client final : public WebhookActor::Callback {
   static td::Result<td::vector<T>> get_array(td::JsonValue &&values, td::Slice class_name,
                                              td::Result<T> (*func)(td::JsonValue &&value));
 
+  template <class T>
+  static td::Result<td::vector<object_ptr<T>>> get_array_generic(
+      td::JsonValue &&values, td::Slice class_name,
+      const std::function<td::Result<object_ptr<T>>(td::JsonValue &&value)> &func);
+
   static object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to(CheckedReplyParameters &&reply_parameters);
 
   static object_ptr<td_api::InputMessageReplyTo> get_input_message_reply_to_unchecked(
@@ -578,9 +584,6 @@ class Client final : public WebhookActor::Callback {
 
   td::Result<td::vector<object_ptr<td_api::InputInlineQueryResult>>> get_inline_query_results(
       const Query *query, BotUserIds &bot_user_ids) const;
-
-  td::Result<td::vector<object_ptr<td_api::InputInlineQueryResult>>> get_inline_query_results(
-      const Query *query, td::JsonValue &&value, BotUserIds &bot_user_ids) const;
 
   struct BotCommandScope {
     object_ptr<td_api::BotCommandScope> scope_;
@@ -739,9 +742,6 @@ class Client final : public WebhookActor::Callback {
   td::Result<td::vector<object_ptr<td_api::InputMessageContent>>> get_input_message_contents(
       const Query *query, td::Slice field_name) const;
 
-  td::Result<td::vector<object_ptr<td_api::InputMessageContent>>> get_input_message_contents(
-      const Query *query, td::JsonValue &&value) const;
-
   td::Result<object_ptr<td_api::inputPaidMedia>> get_input_paid_media(const Query *query,
                                                                       td::JsonValue &&input_media) const;
 
@@ -749,9 +749,6 @@ class Client final : public WebhookActor::Callback {
 
   td::Result<td::vector<object_ptr<td_api::inputPaidMedia>>> get_paid_media(const Query *query,
                                                                             td::Slice field_name) const;
-
-  td::Result<td::vector<object_ptr<td_api::inputPaidMedia>>> get_paid_media(const Query *query,
-                                                                            td::JsonValue &&value) const;
 
   td::Result<object_ptr<td_api::inputMessageInvoice>> get_input_message_invoice(const Query *query) const;
 
