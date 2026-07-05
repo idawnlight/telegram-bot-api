@@ -12270,7 +12270,10 @@ td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_
   TRY_RESULT(is_rtl, object.get_optional_bool_field("is_rtl"));
   TRY_RESULT(skip_entity_detection, object.get_optional_bool_field("skip_entity_detection"));
   auto result = make_object<td_api::inputRichMessage>(nullptr, is_rtl, !skip_entity_detection);
-  if (object.has_field("markdown")) {
+  if (object.has_field("blocks")) {
+    TRY_RESULT(blocks, get_input_page_blocks(query, object.extract_field("blocks")));
+    result->source_ = make_object<td_api::richMessageSourceBlocks>(std::move(blocks));
+  } else if (object.has_field("markdown")) {
     TRY_RESULT(text, object.get_required_string_field("markdown"));
     TRY_RESULT(media, get_input_rich_message_medias(query, object.extract_field("media")));
     result->source_ = make_object<td_api::richMessageSourceMarkdown>(text, std::move(media));
