@@ -12084,6 +12084,167 @@ td::Result<td_api::object_ptr<td_api::RichText>> Client::get_rich_text(td::JsonV
   }
 }
 
+td::Result<td_api::object_ptr<td_api::inputPageBlockListItem>> Client::get_input_page_block_list_item(
+    const Query *query, td::JsonValue &&value) const {
+  if (value.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error(400, "Object expected as InputRichBlockListItem");
+  }
+  auto &object = value.get_object();
+  TRY_RESULT(blocks, get_input_page_blocks(query, object.extract_field("blocks")));
+  TRY_RESULT(has_checkbox, object.get_optional_bool_field("has_checkbox"));
+  TRY_RESULT(is_checked, object.get_optional_bool_field("is_checked"));
+  TRY_RESULT(item_value, object.get_optional_int_field("value"));
+  TRY_RESULT(type, object.get_optional_string_field("type"));
+  return make_object<td_api::inputPageBlockListItem>(std::move(blocks), has_checkbox, is_checked, item_value, type);
+}
+
+td::Result<td_api::object_ptr<td_api::InputPageBlock>> Client::get_input_page_block(const Query *query,
+                                                                                    td::JsonValue &&value) const {
+  if (value.type() != td::JsonValue::Type::Object) {
+    return td::Status::Error(400, "Object expected as InputRichMessageBlock");
+  }
+  auto &object = value.get_object();
+  TRY_RESULT(type, object.get_required_string_field("type"));
+  if (type == "heading") {
+    TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+    TRY_RESULT(size, object.get_required_int_field("size"));
+    return make_object<td_api::inputPageBlockSectionHeading>(std::move(text), size);
+  }
+  if (type == "paragraph") {
+    TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+    return make_object<td_api::inputPageBlockParagraph>(std::move(text));
+  }
+  if (type == "pre") {
+    TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+    TRY_RESULT(language, object.get_optional_string_field("language"));
+    return make_object<td_api::inputPageBlockPreformatted>(std::move(text), language);
+  }
+  if (type == "footer") {
+    TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+    return make_object<td_api::inputPageBlockFooter>(std::move(text));
+  }
+  if (type == "thinking") {
+    TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+    return make_object<td_api::inputPageBlockThinking>(std::move(text));
+  }
+  if (type == "divider") {
+    return make_object<td_api::inputPageBlockDivider>();
+  }
+  if (type == "mathematical_expression") {
+    TRY_RESULT(expression, object.get_required_string_field("expression"));
+    return make_object<td_api::inputPageBlockMathematicalExpression>(expression);
+  }
+  if (type == "anchor") {
+    TRY_RESULT(name, object.get_required_string_field("name"));
+    return make_object<td_api::inputPageBlockAnchor>(name);
+  }
+  if (type == "list") {
+    TRY_RESULT(items, get_array_generic<td_api::inputPageBlockListItem>(
+                          object.extract_field("items"), "InputRichBlockListItem", [&](td::JsonValue &&item) {
+                            return get_input_page_block_list_item(query, std::move(item));
+                          }));
+    return make_object<td_api::inputPageBlockList>(std::move(items));
+  }
+  if (type == "blockquote") {
+    TRY_RESULT(blocks, get_input_page_blocks(query, object.extract_field("blocks")));
+    TRY_RESULT(credit, get_rich_text(object.extract_field("credit")));
+    return make_object<td_api::inputPageBlockBlockQuote>(std::move(blocks), std::move(credit));
+  }
+  if (type == "pullquote") {
+    TRY_RESULT(text, get_rich_text(object.extract_field("text")));
+    TRY_RESULT(credit, get_rich_text(object.extract_field("credit")));
+    return make_object<td_api::inputPageBlockPullQuote>(std::move(text), std::move(credit));
+  }
+  if (type == "collage") {
+    TRY_RESULT(blocks, get_input_page_blocks(query, object.extract_field("blocks")));
+    TRY_RESULT(caption, get_page_block_caption(object.extract_field("caption")));
+    return make_object<td_api::inputPageBlockCollage>(std::move(blocks), std::move(caption));
+  }
+  if (type == "slideshow") {
+    TRY_RESULT(blocks, get_input_page_blocks(query, object.extract_field("blocks")));
+    TRY_RESULT(caption, get_page_block_caption(object.extract_field("caption")));
+    return make_object<td_api::inputPageBlockSlideshow>(std::move(blocks), std::move(caption));
+  }
+  if (type == "table") {
+    td::vector<td::vector<object_ptr<td_api::pageBlockTableCell>>> cells;
+    TRY_RESULT(cells_array, object.extract_required_field("cells", td::JsonValue::Type::Array));
+    for (auto &row : cells_array.get_array()) {
+      TRY_RESULT(new_row, get_array(std::move(row), "PageBlockTableCell", get_page_block_table_cell));
+      cells.push_back(std::move(new_row));
+    }
+    TRY_RESULT(caption, get_rich_text(object.extract_field("caption")));
+    TRY_RESULT(is_bordered, object.get_optional_bool_field("is_bordered"));
+    TRY_RESULT(is_striped, object.get_optional_bool_field("is_striped"));
+    return make_object<td_api::inputPageBlockTable>(std::move(caption), std::move(cells), is_bordered, is_striped);
+  }
+  if (type == "details") {
+    TRY_RESULT(summary, get_rich_text(object.extract_field("summary")));
+    TRY_RESULT(blocks, get_input_page_blocks(query, object.extract_field("blocks")));
+    TRY_RESULT(is_open, object.get_optional_bool_field("is_open"));
+    return make_object<td_api::inputPageBlockDetails>(std::move(summary), std::move(blocks), is_open);
+  }
+  if (type == "map") {
+    TRY_RESULT(location_field, object.extract_required_field("location", td::JsonValue::Type::Object));
+    auto &location_object = location_field.get_object();
+    TRY_RESULT(location, get_location(location_object));
+    TRY_RESULT(zoom, object.get_optional_int_field("zoom"));
+    TRY_RESULT(width, object.get_optional_int_field("width"));
+    TRY_RESULT(height, object.get_optional_int_field("height"));
+    TRY_RESULT(caption, get_page_block_caption(object.extract_field("caption")));
+    return make_object<td_api::inputPageBlockMap>(std::move(location), zoom, width, height, std::move(caption));
+  }
+  if (type != "animation" && type != "audio" && type != "photo" && type != "video" && type != "voice_note") {
+    return td::Status::Error(400, PSLICE() << "type \"" << type << "\" is unsupported");
+  }
+  TRY_RESULT(media_field, object.extract_required_field(type, td::JsonValue::Type::Object));
+  auto &media_object = media_field.get_object();
+  TRY_RESULT(media_type, media_object.get_required_string_field("type"));
+  if (media_type != type) {
+    return td::Status::Error(400, PSLICE()
+                                      << "Unexpected media type \"" << media_type << "\" for block \"" << type << "\"");
+  }
+  TRY_RESULT(input_message_content, get_input_media(query, media_object, type, nullptr, false, false, false, true));
+  TRY_RESULT(caption, get_page_block_caption(object.extract_field("caption")));
+  TRY_RESULT(has_spoiler, media_object.get_optional_bool_field("has_spoiler"));
+  if (type == "animation") {
+    CHECK(input_message_content->get_id() == td_api::inputMessageAnimation::ID);
+    return make_object<td_api::inputPageBlockAnimation>(
+        std::move(static_cast<td_api::inputMessageAnimation *>(input_message_content.get())->animation_),
+        std::move(caption), has_spoiler);
+  }
+  if (type == "audio") {
+    CHECK(input_message_content->get_id() == td_api::inputMessageAudio::ID);
+    return make_object<td_api::inputPageBlockAudio>(
+        std::move(static_cast<td_api::inputMessageAudio *>(input_message_content.get())->audio_), std::move(caption));
+  }
+  if (type == "photo") {
+    CHECK(input_message_content->get_id() == td_api::inputMessagePhoto::ID);
+    return make_object<td_api::inputPageBlockPhoto>(
+        std::move(static_cast<td_api::inputMessagePhoto *>(input_message_content.get())->photo_), std::move(caption),
+        has_spoiler);
+  }
+  if (type == "video") {
+    CHECK(input_message_content->get_id() == td_api::inputMessageVideo::ID);
+    return make_object<td_api::inputPageBlockVideo>(
+        std::move(static_cast<td_api::inputMessageVideo *>(input_message_content.get())->video_), std::move(caption),
+        has_spoiler);
+  }
+  if (type == "voice_note") {
+    CHECK(input_message_content->get_id() == td_api::inputMessageVoiceNote::ID);
+    return make_object<td_api::inputPageBlockVoiceNote>(
+        std::move(static_cast<td_api::inputMessageVoiceNote *>(input_message_content.get())->voice_note_),
+        std::move(caption));
+  }
+  UNREACHABLE();
+}
+
+td::Result<td::vector<td_api::object_ptr<td_api::InputPageBlock>>> Client::get_input_page_blocks(
+    const Query *query, td::JsonValue &&value) const {
+  return get_array_generic<td_api::InputPageBlock>(std::move(value), "InputRichBlock", [&](td::JsonValue &&block) {
+    return get_input_page_block(query, std::move(block));
+  });
+}
+
 td::Result<td_api::object_ptr<td_api::inputRichMessage>> Client::get_input_rich_message(const Query *query) const {
   auto rich_message = query->arg("rich_message");
   if (rich_message.empty()) {
