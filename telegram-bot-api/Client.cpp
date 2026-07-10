@@ -461,6 +461,23 @@ class Client::JsonDatedFiles final : public td::Jsonable {
   const Client *client_;
 };
 
+class Client::JsonCommunity final : public td::Jsonable {
+ public:
+  JsonCommunity(int64 community_id, const Client *client) : community_id_(community_id), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    auto community_info = client_->get_community_info(community_id_);
+    CHECK(community_info != nullptr);
+    object("id", community_id_);
+    object("name", community_info->name);
+  }
+
+ private:
+  int64 community_id_;
+  const Client *client_;
+};
+
 class Client::JsonUser final : public td::Jsonable {
  public:
   JsonUser(int64 user_id, const Client *client, bool full_bot_info = false)
@@ -3902,6 +3919,21 @@ class Client::JsonManagedBotUpdated final : public td::Jsonable {
   const Client *client_;
 };
 
+class Client::JsonCommunityChatAdded final : public td::Jsonable {
+ public:
+  JsonCommunityChatAdded(const td_api::messageChatAddedToCommunity *chat_added_to_community, const Client *client)
+      : chat_added_to_community_(chat_added_to_community), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("community", JsonCommunity(chat_added_to_community_->community_id_, client_));
+  }
+
+ private:
+  const td_api::messageChatAddedToCommunity *chat_added_to_community_;
+  const Client *client_;
+};
+
 class Client::JsonGiveawayCreated final : public td::Jsonable {
  public:
   explicit JsonGiveawayCreated(const td_api::messageGiveawayCreated *giveaway_created)
@@ -5289,9 +5321,13 @@ void Client::JsonMessage::store(td::JsonValueScope *scope) const {
       object("rich_message", JsonRichMessage(content->message_.get(), client_));
       break;
     }
-    case td_api::messageChatAddedToCommunity::ID:
+    case td_api::messageChatAddedToCommunity::ID: {
+      auto content = static_cast<const td_api::messageChatAddedToCommunity *>(message_->content.get());
+      object("community_chat_added", JsonCommunityChatAdded(content, client_));
       break;
+    }
     case td_api::messageChatRemovedFromCommunity::ID:
+      object("community_chat_removed", JsonEmptyObject());
       break;
     default:
       UNREACHABLE();
@@ -18561,8 +18597,6 @@ bool Client::need_skip_update_message(int64 chat_id, const MessageInfo *message_
     case td_api::messageUpgradedGiftPurchaseOfferRejected::ID:
     case td_api::messageChatHasProtectedContentToggled::ID:
     case td_api::messageChatHasProtectedContentDisableRequested::ID:
-    case td_api::messageChatAddedToCommunity::ID:
-    case td_api::messageChatRemovedFromCommunity::ID:
       return true;
     default:
       break;

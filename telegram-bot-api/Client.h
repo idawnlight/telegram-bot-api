@@ -90,6 +90,7 @@ class Client final : public WebhookActor::Callback {
   class JsonFile;
   class JsonDatedFile;
   class JsonDatedFiles;
+  class JsonCommunity;
   class JsonUser;
   class JsonUsers;
   class JsonReactionType;
@@ -245,6 +246,7 @@ class Client final : public WebhookActor::Callback {
   class JsonChatShared;
   class JsonManagedBotCreated;
   class JsonManagedBotUpdated;
+  class JsonCommunityChatAdded;
   class JsonGiveawayCreated;
   class JsonGiveaway;
   class JsonGiveawayWinners;
