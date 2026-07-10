@@ -54,7 +54,7 @@ Client::Client(td::ActorShared<> parent, const td::string &bot_token, bool is_te
 
 Client::~Client() {
   td::Scheduler::instance()->destroy_on_scheduler(SharedData::get_file_gc_scheduler_id(), messages_, users_, groups_,
-                                                  supergroups_, chats_, sticker_set_names_);
+                                                  supergroups_, chats_, communities_, sticker_set_names_);
 }
 
 int Client::get_retry_after_time(td::Slice error_message) {
@@ -9663,6 +9663,12 @@ void Client::on_update(object_ptr<td_api::Object> result) {
       add_supergroup(supergroup_info, std::move(update->supergroup_));
       break;
     }
+    case td_api::updateCommunity::ID: {
+      auto update = move_object_as<td_api::updateCommunity>(result);
+      auto *community_info = add_community_info(update->community_->id_);
+      add_community(community_info, std::move(update->community_));
+      break;
+    }
     case td_api::updateSupergroupFullInfo::ID: {
       auto update = move_object_as<td_api::updateSupergroupFullInfo>(result);
       auto supergroup_id = update->supergroup_id_;
@@ -17551,6 +17557,22 @@ Client::ChatInfo *Client::add_chat(int64 chat_id) {
 
 const Client::ChatInfo *Client::get_chat(int64 chat_id) const {
   return chats_.get_pointer(chat_id);
+}
+
+void Client::add_community(CommunityInfo *community_info, object_ptr<td_api::community> &&community) {
+  community_info->name = std::move(community->name_);
+}
+
+Client::CommunityInfo *Client::add_community_info(int64 community_id) {
+  auto &community_info = communities_[community_id];
+  if (community_info == nullptr) {
+    community_info = td::make_unique<CommunityInfo>();
+  }
+  return community_info.get();
+}
+
+const Client::CommunityInfo *Client::get_community_info(int64 community_id) const {
+  return communities_.get_pointer(community_id);
 }
 
 void Client::set_chat_available_reactions(ChatInfo *chat_info,

@@ -1210,6 +1210,13 @@ class Client final : public WebhookActor::Callback {
   ChatInfo *add_chat(int64 chat_id);
   const ChatInfo *get_chat(int64 chat_id) const;
 
+  struct CommunityInfo {
+    td::string name;
+  };
+  static void add_community(CommunityInfo *community_info, object_ptr<td_api::community> &&community);
+  CommunityInfo *add_community_info(int64 community_id);
+  const CommunityInfo *get_community_info(int64 community_id) const;
+
   void set_chat_available_reactions(ChatInfo *chat_info,
                                     object_ptr<td_api::ChatAvailableReactions> &&available_reactions);
 
@@ -1562,6 +1569,7 @@ class Client final : public WebhookActor::Callback {
   td::WaitFreeHashMap<int64, td::unique_ptr<GroupInfo>> groups_;
   td::WaitFreeHashMap<int64, td::unique_ptr<SupergroupInfo>> supergroups_;
   td::WaitFreeHashMap<int64, td::unique_ptr<ChatInfo>> chats_;
+  td::WaitFreeHashMap<int64, td::unique_ptr<CommunityInfo>> communities_;
   td::WaitFreeHashMap<td::string, td::unique_ptr<BusinessConnection>> business_connections_;
 
   td::FlatHashMap<int32, td::vector<PromisedQueryPtr>> file_download_listeners_;
