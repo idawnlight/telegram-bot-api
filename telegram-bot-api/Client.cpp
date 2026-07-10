@@ -3925,6 +3925,31 @@ class Client::JsonManagedBotUpdated final : public td::Jsonable {
   const Client *client_;
 };
 
+class Client::JsonBotSubscriptionUpdated final : public td::Jsonable {
+ public:
+  JsonBotSubscriptionUpdated(const td_api::updateUserSubscription *update_user_subscription, const Client *client)
+      : update_user_subscription_(update_user_subscription), client_(client) {
+  }
+  void store(td::JsonValueScope *scope) const {
+    auto object = scope->enter_object();
+    object("user", JsonUser(update_user_subscription_->user_id_, client_));
+    object("invoice_payload", update_user_subscription_->payload_);
+    if (update_user_subscription_->is_canceled_) {
+      object("state", "canceled");
+    } else if (update_user_subscription_->is_restored_) {
+      object("state", "active");
+    } else if (update_user_subscription_->is_payment_failed_) {
+      object("state", "failed");
+    } else {
+      UNREACHABLE();
+    }
+  }
+
+ private:
+  const td_api::updateUserSubscription *update_user_subscription_;
+  const Client *client_;
+};
+
 class Client::JsonCommunityChatAdded final : public td::Jsonable {
  public:
   JsonCommunityChatAdded(const td_api::messageChatAddedToCommunity *chat_added_to_community, const Client *client)
@@ -9826,6 +9851,9 @@ void Client::on_update(object_ptr<td_api::Object> result) {
       break;
     case td_api::updateManagedBot::ID:
       add_update_managed_bot(move_object_as<td_api::updateManagedBot>(result));
+      break;
+    case td_api::updateUserSubscription::ID:
+      add_update_subscription(move_object_as<td_api::updateUserSubscription>(result));
       break;
     case td_api::updateNewCustomEvent::ID:
       add_new_custom_event(move_object_as<td_api::updateNewCustomEvent>(result));
@@ -17945,6 +17973,8 @@ td::Slice Client::get_update_type_name(UpdateType update_type) {
       return td::Slice("managed_bot");
     case UpdateType::GuestMessage:
       return td::Slice("guest_message");
+    case UpdateType::Subscription:
+      return td::Slice("subscription");
     default:
       UNREACHABLE();
       return td::Slice();
@@ -18318,6 +18348,12 @@ void Client::add_update_managed_bot(object_ptr<td_api::updateManagedBot> &&query
   CHECK(query != nullptr);
   add_update(UpdateType::ManagedBot, JsonManagedBotUpdated(query.get(), this), 86400,
              query->user_id_ + (static_cast<int64>(13) << 33));
+}
+
+void Client::add_update_subscription(object_ptr<td_api::updateUserSubscription> &&query) {
+  CHECK(query != nullptr);
+  add_update(UpdateType::Subscription, JsonBotSubscriptionUpdated(query.get(), this), 86400,
+             query->user_id_ + (static_cast<int64>(14) << 33));
 }
 
 void Client::add_new_custom_event(object_ptr<td_api::updateNewCustomEvent> &&event) {
