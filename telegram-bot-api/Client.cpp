@@ -6557,7 +6557,7 @@ class Client::JsonStarTransactions final : public td::Jsonable {
 
 class Client::JsonUpdateTypes final : public td::Jsonable {
  public:
-  explicit JsonUpdateTypes(td::uint32 update_types) : update_types_(update_types) {
+  explicit JsonUpdateTypes(td::uint64 update_types) : update_types_(update_types) {
   }
   void store(td::JsonValueScope *scope) const {
     auto array = scope->enter_array();
@@ -6572,7 +6572,7 @@ class Client::JsonUpdateTypes final : public td::Jsonable {
   }
 
  private:
-  td::uint32 update_types_;
+  td::uint64 update_types_;
 };
 
 class Client::JsonWebhookInfo final : public td::Jsonable {
@@ -9775,7 +9775,7 @@ void Client::on_update(object_ptr<td_api::Object> result) {
         } else {
           CHECK(update->value_->get_id() == td_api::optionValueInteger::ID);
           allowed_update_types_ =
-              static_cast<td::uint32>(move_object_as<td_api::optionValueInteger>(update->value_)->value_);
+              static_cast<td::uint64>(move_object_as<td_api::optionValueInteger>(update->value_)->value_);
         }
       }
       if (name == "unix_time" && update->value_->get_id() != td_api::optionValueEmpty::ID) {
@@ -17951,7 +17951,7 @@ td::Slice Client::get_update_type_name(UpdateType update_type) {
   }
 }
 
-td::uint32 Client::get_allowed_update_types(td::MutableSlice allowed_updates, bool is_internal) {
+td::uint64 Client::get_allowed_update_types(td::MutableSlice allowed_updates, bool is_internal) {
   if (allowed_updates.empty()) {
     return 0;
   }
@@ -17963,11 +17963,11 @@ td::uint32 Client::get_allowed_update_types(td::MutableSlice allowed_updates, bo
     return 0;
   }
 
-  td::uint32 result = 0;
+  td::uint64 result = 0;
   auto value = r_value.move_as_ok();
   if (value.type() != td::JsonValue::Type::Array) {
     if (value.type() == td::JsonValue::Type::Number && is_internal) {
-      auto r_number = td::to_integer_safe<td::uint32>(value.get_number());
+      auto r_number = td::to_integer_safe<td::uint64>(value.get_number());
       if (r_number.is_ok() && r_number.ok() > 0) {
         return r_number.ok();
       }
@@ -17982,7 +17982,7 @@ td::uint32 Client::get_allowed_update_types(td::MutableSlice allowed_updates, bo
     to_lower_inplace(type_name);
     for (int32 i = 0; i < static_cast<int32>(UpdateType::Size); i++) {
       if (get_update_type_name(static_cast<UpdateType>(i)) == type_name) {
-        result |= (1 << i);
+        result |= (static_cast<td::uint64>(1) << i);
       }
     }
   }
@@ -18001,7 +18001,7 @@ bool Client::update_allowed_update_types(const Query *query) {
     if (allowed_update_types == DEFAULT_ALLOWED_UPDATE_TYPES) {
       value = make_object<td_api::optionValueEmpty>();
     } else {
-      value = make_object<td_api::optionValueInteger>(allowed_update_types);
+      value = make_object<td_api::optionValueInteger>(static_cast<int64>(allowed_update_types));
     }
     send_request(make_object<td_api::setOption>("xallowed_update_types", std::move(value)),
                  td::make_unique<TdOnOkCallback>());

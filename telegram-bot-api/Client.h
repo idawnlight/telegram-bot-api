@@ -1503,7 +1503,7 @@ class Client final : public WebhookActor::Callback {
 
   static td::Slice get_update_type_name(UpdateType update_type);
 
-  static td::uint32 get_allowed_update_types(td::MutableSlice allowed_updates, bool is_internal);
+  static td::uint64 get_allowed_update_types(td::MutableSlice allowed_updates, bool is_internal);
 
   bool update_allowed_update_types(const Query *query);
 
@@ -1534,10 +1534,11 @@ class Client final : public WebhookActor::Callback {
   bool have_message_access(int64 chat_id) const;
 
   // by default ChatMember, MessageReaction, and MessageReactionCount updates are disabled
-  static constexpr td::uint32 DEFAULT_ALLOWED_UPDATE_TYPES =
-      (1 << static_cast<int32>(UpdateType::Size)) - 1 - (1 << static_cast<int32>(UpdateType::ChatMember)) -
-      (1 << static_cast<int32>(UpdateType::MessageReaction)) -
-      (1 << static_cast<int32>(UpdateType::MessageReactionCount));
+  static constexpr td::uint64 DEFAULT_ALLOWED_UPDATE_TYPES =
+      (static_cast<td::uint64>(1) << static_cast<int32>(UpdateType::Size)) - 1 -
+      (static_cast<td::uint64>(1) << static_cast<int32>(UpdateType::ChatMember)) -
+      (static_cast<td::uint64>(1) << static_cast<int32>(UpdateType::MessageReaction)) -
+      (static_cast<td::uint64>(1) << static_cast<int32>(UpdateType::MessageReactionCount));
 
   object_ptr<td_api::AuthorizationState> authorization_state_;
   bool was_authorized_ = false;
@@ -1703,7 +1704,7 @@ class Client final : public WebhookActor::Callback {
   double next_bot_updates_warning_time_ = 0;
   bool was_bot_updates_warning_ = false;
 
-  td::uint32 allowed_update_types_ = DEFAULT_ALLOWED_UPDATE_TYPES;
+  td::uint64 allowed_update_types_ = DEFAULT_ALLOWED_UPDATE_TYPES;
 
   bool has_webhook_certificate_ = false;
   enum class WebhookQueryType { Cancel, Verify };
