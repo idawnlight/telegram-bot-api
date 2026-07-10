@@ -1117,6 +1117,7 @@ class Client final : public WebhookActor::Callback {
     object_ptr<td_api::audio> first_profile_audio;
     int64 personal_chat_id = 0;
     int64 paid_message_star_count = 0;
+    int64 community_id = 0;
 
     bool have_access = false;
     bool can_join_groups = false;
@@ -1167,6 +1168,7 @@ class Client final : public WebhookActor::Callback {
     int64 direct_messages_chat_id = 0;
     int64 paid_message_star_count = 0;
     int64 guard_bot_user_id = 0;
+    int64 community_id = 0;
     object_ptr<td_api::chatLocation> location;
     object_ptr<td_api::ChatMemberStatus> status;
     bool is_supergroup = false;

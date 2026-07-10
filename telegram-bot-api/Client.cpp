@@ -1597,6 +1597,9 @@ class Client::JsonChat final : public td::Jsonable {
           if (user_info->personal_chat_id != 0) {
             object("personal_chat", JsonChat(user_info->personal_chat_id, client_));
           }
+          if (user_info->community_id != 0) {
+            object("community", JsonCommunity(user_info->community_id, client_));
+          }
           if (user_info->rating != nullptr) {
             object("rating", JsonUserRating(user_info->rating.get()));
           }
@@ -1720,6 +1723,9 @@ class Client::JsonChat final : public td::Jsonable {
           }
           if (supergroup_info->guard_bot_user_id != 0) {
             object("guard_bot", JsonUser(supergroup_info->guard_bot_user_id, client_));
+          }
+          if (supergroup_info->community_id != 0) {
+            object("community", JsonCommunity(supergroup_info->community_id, client_));
           }
           if (supergroup_info->location != nullptr) {
             object("location", JsonChatLocation(supergroup_info->location.get()));
@@ -9674,6 +9680,7 @@ void Client::on_update(object_ptr<td_api::Object> result) {
       user_info->personal_chat_id = full_info->personal_chat_id_;
       user_info->has_private_forwards = full_info->has_private_forwards_;
       user_info->has_restricted_voice_and_video_messages = full_info->has_restricted_voice_and_video_note_messages_;
+      user_info->community_id = full_info->community_id_;
       break;
     }
     case td_api::updateBasicGroup::ID: {
@@ -9724,6 +9731,7 @@ void Client::on_update(object_ptr<td_api::Object> result) {
       supergroup_info->linked_chat_id = full_info->linked_chat_id_;
       supergroup_info->direct_messages_chat_id = full_info->direct_messages_chat_id_;
       supergroup_info->guard_bot_user_id = full_info->guard_bot_user_id_;
+      supergroup_info->community_id = full_info->community_id_;
       supergroup_info->location = std::move(full_info->location_);
       supergroup_info->has_hidden_members = full_info->has_hidden_members_;
       supergroup_info->has_aggressive_anti_spam_enabled = full_info->has_aggressive_anti_spam_enabled_;
