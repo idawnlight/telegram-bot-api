@@ -270,6 +270,7 @@ bool Client::init_methods() {
   methods_.emplace("editmessagechecklist", &Client::process_edit_message_checklist_query);
   methods_.emplace("editmessagereplymarkup", &Client::process_edit_message_reply_markup_query);
   methods_.emplace("editephemeralmessagetext", &Client::process_edit_ephemeral_message_text_query);
+  methods_.emplace("editephemeralmessagecaption", &Client::process_edit_ephemeral_message_caption_query);
   methods_.emplace("deletemessage", &Client::process_delete_message_query);
   methods_.emplace("deletemessages", &Client::process_delete_messages_query);
   methods_.emplace("deleteephemeralmessage", &Client::process_delete_ephemeral_message_query);
@@ -14826,6 +14827,31 @@ td::Status Client::process_edit_ephemeral_message_text_query(PromisedQueryPtr &q
   TRY_RESULT(receiver_user_id, get_user_id(query.get(), "receiver_user_id"));
   auto ephemeral_message_id = get_integer_arg(query.get(), "ephemeral_message_id", 0);
   TRY_RESULT(reply_markup, get_reply_markup(query.get(), bot_user_ids_));
+
+  resolve_reply_markup_bot_usernames(
+      std::move(reply_markup), std::move(query),
+      [this, chat_id_str = chat_id.str(), receiver_user_id, ephemeral_message_id,
+       input_message_text = std::move(input_message_text)](object_ptr<td_api::ReplyMarkup> reply_markup,
+                                                           PromisedQueryPtr query) mutable {
+        check_chat(chat_id_str, AccessRights::Edit, std::move(query),
+                   [this, receiver_user_id, ephemeral_message_id, input_message_text = std::move(input_message_text),
+                    reply_markup = std::move(reply_markup)](int64 chat_id, PromisedQueryPtr query) mutable {
+                     send_request(make_object<td_api::editEphemeralMessage>(
+                                      chat_id, receiver_user_id, ephemeral_message_id, std::move(reply_markup),
+                                      std::move(input_message_text)),
+                                  td::make_unique<TdOnOkQueryCallback>(std::move(query)));
+                   });
+      });
+  return td::Status::OK();
+}
+
+td::Status Client::process_edit_ephemeral_message_caption_query(PromisedQueryPtr &query) {
+  auto chat_id = query->arg("chat_id");
+  TRY_RESULT(receiver_user_id, get_user_id(query.get(), "receiver_user_id"));
+  auto ephemeral_message_id = get_integer_arg(query.get(), "ephemeral_message_id", 0);
+  TRY_RESULT(reply_markup, get_reply_markup(query.get(), bot_user_ids_));
+  TRY_RESULT(caption, get_caption(query.get()));
+  auto input_message_text = make_object<td_api::inputMessageText>(std::move(caption), nullptr, false);
 
   resolve_reply_markup_bot_usernames(
       std::move(reply_markup), std::move(query),
