@@ -1044,6 +1044,9 @@ class Client final : public WebhookActor::Callback {
 
   void on_sent_story(object_ptr<td_api::story> &&story, PromisedQueryPtr query);
 
+  td::Status do_edit_ephemeral_message(object_ptr<td_api::InputMessageContent> input_message_content,
+                                       PromisedQueryPtr &query);
+
   void do_get_file(object_ptr<td_api::file> file, PromisedQueryPtr query);
 
   bool is_file_being_downloaded(int32 file_id) const;
